@@ -1,0 +1,136 @@
+.user-dropdown {
+  position: relative;
+}
+
+.user-dropdown-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 50px;
+  transition: background-color 0.2s ease;
+}
+
+.user-dropdown-trigger:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.dropdown-arrow {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.8);
+  transition: transform 0.3s ease;
+  margin-left: 4px;
+}
+
+.user-dropdown-trigger:hover .dropdown-arrow {
+  color: white;
+}
+
+.user-dropdown.open .dropdown-arrow {
+  transform: rotate(180deg);
+}
+
+.user-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05);
+  min-width: 280px;
+  z-index: 1000;
+  animation: slideDown 0.2s ease-out;
+  overflow: hidden;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.dropdown-header {
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.dropdown-user-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.dropdown-user-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dropdown-user-email {
+  font-size: 13px;
+  color: #6b7280;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dropdown-divider {
+  height: 1px;
+  background: #e5e7eb;
+  margin: 8px 0;
+}
+
+.dropdown-items {
+  padding: 8px 0;
+}
+
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  color: #374151;
+  font-size: 14px;
+}
+
+.dropdown-item:hover {
+  background-color: #f3f4f6;
+}
+
+.dropdown-item-icon {
+  font-size: 18px;
+  width: 24px;
+  text-align: center;
+}
+
+.dropdown-item-danger {
+  color: #dc2626;
+}
+
+.dropdown-item-danger:hover {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+
+@media (max-width: 768px) {
+  .user-dropdown-menu {
+    right: -20px;
+    min-width: 260px;
+  }
+}
+

@@ -1,0 +1,276 @@
+.navbar {
+  background: white;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.navbar-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 64px;
+}
+
+.navbar-brand {
+  display: flex;
+  align-items: center;
+}
+
+.navbar-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  color: #1e3c72;
+  font-size: 20px;
+  font-weight: 700;
+  transition: opacity 0.3s ease;
+}
+
+.navbar-logo:hover {
+  opacity: 0.8;
+}
+
+.logo-icon {
+  font-size: 24px;
+}
+
+.logo-text {
+  letter-spacing: 0.5px;
+}
+
+.navbar-menu {
+  display: flex;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  gap: 4px;
+  flex: 1;
+  justify-content: center;
+}
+
+.navbar-item {
+  margin: 0;
+}
+
+.navbar-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  text-decoration: none;
+  color: #4b5563;
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.navbar-link:hover {
+  background-color: #f3f4f6;
+  color: #1e3c72;
+}
+
+.navbar-link.active {
+  color: #1e3c72;
+  background-color: #eff6ff;
+  font-weight: 600;
+}
+
+.navbar-link.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60%;
+  height: 3px;
+  background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+  border-radius: 3px 3px 0 0;
+}
+
+.navbar-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.navbar-label {
+  white-space: nowrap;
+}
+
+/* 移动端菜单按钮 */
+.navbar-toggle {
+  display: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hamburger {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 24px;
+}
+
+.hamburger span {
+  display: block;
+  width: 100%;
+  height: 2px;
+  background-color: #4b5563;
+  border-radius: 2px;
+  transition: all 0.3s ease;
+}
+
+.hamburger.active span:nth-child(1) {
+  transform: rotate(45deg) translate(6px, 6px);
+}
+
+.hamburger.active span:nth-child(2) {
+  opacity: 0;
+}
+
+.hamburger.active span:nth-child(3) {
+  transform: rotate(-45deg) translate(6px, -6px);
+}
+
+/* 移动端下拉菜单 */
+.navbar-mobile-menu {
+  display: none;
+  background: white;
+  border-top: 1px solid #e5e7eb;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.navbar-mobile-list {
+  list-style: none;
+  margin: 0;
+  padding: 8px 0;
+}
+
+.navbar-mobile-item {
+  margin: 0;
+}
+
+.navbar-mobile-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  text-decoration: none;
+  color: #4b5563;
+  font-size: 15px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.navbar-mobile-link:hover {
+  background-color: #f3f4f6;
+  color: #1e3c72;
+}
+
+.navbar-mobile-link.active {
+  color: #1e3c72;
+  background-color: #eff6ff;
+  font-weight: 600;
+  border-left: 3px solid #1e3c72;
+}
+
+/* 响应式设计 */
+@media (max-width: 1024px) {
+  .navbar-menu {
+    gap: 2px;
+  }
+
+  .navbar-link {
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+
+  .navbar-label {
+    display: none;
+  }
+
+  .navbar-icon {
+    font-size: 20px;
+  }
+}
+
+@media (max-width: 768px) {
+  .navbar-menu {
+    display: none;
+  }
+
+  .navbar-toggle {
+    display: flex;
+  }
+
+  .navbar-mobile-menu {
+    display: block;
+  }
+
+  .navbar-container {
+    padding: 0 16px;
+  }
+
+  .navbar-logo {
+    font-size: 18px;
+  }
+
+  .logo-icon {
+    font-size: 20px;
+  }
+}
+
+/* 管理员菜单项特殊样式 */
+.navbar-link[href*="/admin"] {
+  color: #dc2626;
+}
+
+.navbar-link[href*="/admin"]:hover {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+
+.navbar-link[href*="/admin"].active {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+
+.navbar-mobile-link[href*="/admin"] {
+  color: #dc2626;
+}
+
+.navbar-mobile-link[href*="/admin"]:hover {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+
+.navbar-mobile-link[href*="/admin"].active {
+  background-color: #fee2e2;
+  color: #991b1b;
+  border-left-color: #dc2626;
+}
+
