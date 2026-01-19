@@ -4,19 +4,12 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Home from './pages/Home';
 import Profile from './pages/Profile';
+import Proposals from './pages/Proposals';
+import AdminProposals from './pages/AdminProposals';
+import MyVotes from './pages/MyVotes';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
 import './App.css';
-
-// 占位页面组件（后续实现）
-const Proposals = () => (
-  <Layout>
-    <div style={{ padding: '40px', textAlign: 'center' }}>
-      <h2>提案管理</h2>
-      <p>功能开发中...</p>
-    </div>
-  </Layout>
-);
 const Voting = () => (
   <Layout>
     <div style={{ padding: '40px', textAlign: 'center' }}>
@@ -122,6 +115,14 @@ function App() {
             }
           />
           <Route
+            path="/my-votes"
+            element={
+              <ProtectedRoute>
+                <MyVotes />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/discussion"
             element={
               <ProtectedRoute>
@@ -158,6 +159,14 @@ function App() {
             element={
               <ProtectedRoute requiredRole="admin">
                 <AdminSettings />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/proposals"
+            element={
+              <ProtectedRoute requiredRole="admin">
+                <AdminProposals />
               </ProtectedRoute>
             }
           />

@@ -62,5 +62,22 @@ export const userAPI = {
   },
 };
 
+// 提案相关 API
+export const proposalAPI = {
+  getProposals: (params) => api.get('/proposals', { params }),
+  getProposalById: (id) => api.get(`/proposals/${id}`),
+  createProposal: (formData) => {
+    return api.post('/proposals', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
+  updateProposal: (id, data) => api.put(`/proposals/${id}`, data),
+  deleteProposal: (id) => api.delete(`/proposals/${id}`),
+  voteProposal: (id, voteType) => api.post(`/proposals/${id}/vote`, { voteType }),
+  getMyVote: (id) => api.get(`/proposals/${id}/my-vote`),
+};
+
 export default api;
 

@@ -1,99 +1,84 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 import { useAuth } from '../context/AuthContext';
 import { proposalAPI } from '../services/api';
-import './Home.css';
+import './MyVotes.css';
 
-const Home = () => {
+const MyVotes = () => {
   const { user } = useAuth();
-  const [allProposals, setAllProposals] = useState([]);
+  const navigate = useNavigate();
+  const [myVotes, setMyVotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [activeCategory, setActiveCategory] = useState('all'); // all, active, ended, notStarted
+  const [filter, setFilter] = useState('all'); // all, upvote, downvote, abstain
   const [selectedProposal, setSelectedProposal] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
-  const [userVote, setUserVote] = useState(null); // 'upvote', 'downvote', 'abstain', null
+  const [userVote, setUserVote] = useState(null);
   const [voting, setVoting] = useState(false);
 
-  // 获取审核通过的提案列表（只获取 active, passed, closed 状态的提案）
   useEffect(() => {
-    fetchProposals();
+    fetchMyVotes();
   }, []);
 
-  const fetchProposals = async () => {
+  const fetchMyVotes = async () => {
     try {
       setLoading(true);
-      // 获取所有提案，然后在前端筛选出审核通过的提案
-      const response = await proposalAPI.getProposals({ limit: 100 });
-      const allProposalsData = response.data.proposals || [];
+      // 获取所有提案
+      const response = await proposalAPI.getProposals({ limit: 1000 });
+      const allProposals = response.data.proposals || [];
       
-      // 只显示审核通过的提案：active（进行中）、passed（已通过）、closed（已关闭）
-      // 不显示：pending（待审核）、rejected（已拒绝）、draft（草稿）
-      const approvedProposals = allProposalsData.filter(p => 
-        ['active', 'passed', 'closed'].includes(p.status)
-      );
-      
-      setAllProposals(approvedProposals);
+      // 筛选出用户投票过的提案
+      const votedProposals = allProposals.filter(proposal => {
+        if (!proposal.votes?.voterRecords) return false;
+        return proposal.votes.voterRecords.some(
+          record => record.user?._id === user._id || record.user?.toString() === user._id
+        );
+      });
+
+      // 为每个提案添加用户的投票信息
+      const proposalsWithVoteInfo = votedProposals.map(proposal => {
+        const userVoteRecord = proposal.votes.voterRecords.find(
+          record => record.user?._id === user._id || record.user?.toString() === user._id
+        );
+        return {
+          ...proposal,
+          myVoteType: userVoteRecord?.voteType || null,
+          myVoteTime: userVoteRecord?.votedAt || null
+        };
+      });
+
+      setMyVotes(proposalsWithVoteInfo);
     } catch (error) {
-      console.error('获取提案列表失败:', error);
-      setError('获取提案列表失败，请稍后重试');
+      console.error('获取我的投票失败:', error);
+      setError('获取投票记录失败，请稍后重试');
     } finally {
       setLoading(false);
     }
   };
 
-  // 根据分类筛选提案（根据时间判断）
-  const getFilteredProposals = () => {
-    const now = new Date();
-    
-    switch (activeCategory) {
-      case 'active':
-        // 进行中：当前时间在开始时间和结束时间之间
-        return allProposals.filter(p => {
-          if (p.status !== 'active') return false;
-          if (!p.startTime || !p.endTime) return false;
-          const start = new Date(p.startTime);
-          const end = new Date(p.endTime);
-          return now >= start && now <= end;
-        });
-      case 'ended':
-        // 已结束：当前时间超过结束时间
-        return allProposals.filter(p => {
-          if (!p.endTime) return false;
-          const end = new Date(p.endTime);
-          return now > end;
-        });
-      case 'notStarted':
-        // 未开始：当前时间早于开始时间
-        return allProposals.filter(p => {
-          if (p.status !== 'active') return false;
-          if (!p.startTime) return false;
-          const start = new Date(p.startTime);
-          return now < start;
-        });
-      case 'all':
-      default:
-        // 全部提案：所有审核通过的提案
-        return allProposals;
-    }
+  // 根据筛选条件过滤投票
+  const getFilteredVotes = () => {
+    if (filter === 'all') return myVotes;
+    return myVotes.filter(vote => vote.myVoteType === filter);
   };
 
-  const proposals = getFilteredProposals();
+  const filteredVotes = getFilteredVotes();
 
-  // 获取状态标签样式
-  const getStatusStyle = (status) => {
+  // 获取投票类型样式
+  const getVoteTypeStyle = (voteType) => {
     const styles = {
-      active: { bg: '#dbeafe', color: '#2563eb', text: '进行中' },
-      passed: { bg: '#d1fae5', color: '#059669', text: '已通过' },
-      closed: { bg: '#f3f4f6', color: '#6b7280', text: '已关闭' }
+      upvote: { bg: '#dbeafe', color: '#2563eb', text: '支持', icon: '👍' },
+      downvote: { bg: '#fee2e2', color: '#dc2626', text: '反对', icon: '👎' },
+      abstain: { bg: '#fef3c7', color: '#d97706', text: '弃权', icon: '🤷' }
     };
-    return styles[status] || styles.active;
+    return styles[voteType] || styles.upvote;
   };
 
   // 格式化日期
   const formatDate = (dateString) => {
-    if (!dateString) return '未设置';
+    if (!dateString) return '';
     const date = new Date(dateString);
     return date.toLocaleDateString('zh-CN', {
       year: 'numeric',
@@ -104,20 +89,16 @@ const Home = () => {
     });
   };
 
-  // 格式化时间（简短版）
-  const formatTimeShort = (dateString) => {
-    if (!dateString) return '未设置';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('zh-CN', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+  // 检查提案是否在投票期内
+  const isVotingActive = (proposal) => {
+    if (proposal.status !== 'active') return false;
+    const now = new Date();
+    if (proposal.startTime && now < new Date(proposal.startTime)) return false;
+    if (proposal.endTime && now > new Date(proposal.endTime)) return false;
+    return true;
   };
 
-  // 打开提案详情弹窗
+  // 打开提案详情
   const handleViewDetail = async (proposalId) => {
     try {
       setDetailLoading(true);
@@ -164,8 +145,8 @@ const Home = () => {
       setUserVote(voteType);
       
       // 更新列表中的提案数据
-      setAllProposals(prev => prev.map(p => 
-        p._id === selectedProposal._id ? response.data.proposal : p
+      setMyVotes(prev => prev.map(p => 
+        p._id === selectedProposal._id ? { ...response.data.proposal, myVoteType: voteType } : p
       ));
     } catch (error) {
       console.error('投票失败:', error);
@@ -175,245 +156,205 @@ const Home = () => {
     }
   };
 
-  // 根据时间判断提案状态并统计
-  const getProposalTimeStatus = (proposal) => {
-    if (!proposal.startTime || !proposal.endTime) return null;
-    const now = new Date();
-    const start = new Date(proposal.startTime);
-    const end = new Date(proposal.endTime);
-    
-    if (now < start) return 'notStarted';
-    if (now >= start && now <= end) return 'active';
-    if (now > end) return 'ended';
-    return null;
+  // 获取状态标签样式
+  const getStatusStyle = (status) => {
+    const styles = {
+      active: { bg: '#dbeafe', color: '#2563eb', text: '进行中' },
+      passed: { bg: '#d1fae5', color: '#059669', text: '已通过' },
+      closed: { bg: '#f3f4f6', color: '#6b7280', text: '已关闭' }
+    };
+    return styles[status] || styles.active;
   };
 
-  // 分类配置（根据时间判断）
-  const now = new Date();
-  const categories = [
-    { 
-      key: 'all', 
-      label: '全部提案', 
-      count: allProposals.length 
-    },
-    { 
-      key: 'active', 
-      label: '进行中', 
-      count: allProposals.filter(p => {
-        if (p.status !== 'active') return false;
-        if (!p.startTime || !p.endTime) return false;
-        const start = new Date(p.startTime);
-        const end = new Date(p.endTime);
-        return now >= start && now <= end;
-      }).length 
-    },
-    { 
-      key: 'ended', 
-      label: '已结束', 
-      count: allProposals.filter(p => {
-        if (!p.endTime) return false;
-        const end = new Date(p.endTime);
-        return now > end;
-      }).length 
-    },
-    { 
-      key: 'notStarted', 
-      label: '未开始', 
-      count: allProposals.filter(p => {
-        if (p.status !== 'active') return false;
-        if (!p.startTime) return false;
-        const start = new Date(p.startTime);
-        return now < start;
-      }).length 
-    }
-  ];
+  // 格式化时间（简短版）
+  const formatTimeShort = (dateString) => {
+    if (!dateString) return '未设置';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('zh-CN', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  // 统计信息
+  const stats = {
+    total: myVotes.length,
+    upvote: myVotes.filter(v => v.myVoteType === 'upvote').length,
+    downvote: myVotes.filter(v => v.myVoteType === 'downvote').length,
+    abstain: myVotes.filter(v => v.myVoteType === 'abstain').length
+  };
 
   return (
     <Layout>
-      <div className="home-container">
-        {/* 控制台卡片 */}
-        <div className="dashboard-section">
-          <h2>控制台</h2>
-          <div className="dashboard-grid">
-            <div className="dashboard-card">
-              <div className="dashboard-icon">📊</div>
-              <h3>数据概览</h3>
-              <p>查看系统整体数据统计</p>
+      <div className="my-votes-page">
+        <div className="my-votes-header">
+          <div>
+            <h1>我的投票</h1>
+            <p className="page-subtitle">查看您参与的所有投票记录</p>
+          </div>
+        </div>
+
+        {/* 统计卡片 */}
+        <div className="votes-stats">
+          <div className="stat-card">
+            <div className="stat-icon">📊</div>
+            <div className="stat-content">
+              <div className="stat-value">{stats.total}</div>
+              <div className="stat-label">总投票数</div>
             </div>
-            <div className="dashboard-card" onClick={() => window.location.href = '/proposals'}>
-              <div className="dashboard-icon">📝</div>
-              <h3>我的提案</h3>
-              <p>查看和管理我提交的提案</p>
+          </div>
+          <div className="stat-card stat-upvote">
+            <div className="stat-icon">👍</div>
+            <div className="stat-content">
+              <div className="stat-value">{stats.upvote}</div>
+              <div className="stat-label">支持</div>
             </div>
-            <div className="dashboard-card" onClick={() => window.location.href = '/my-votes'}>
-              <div className="dashboard-icon">🗳️</div>
-              <h3>我的投票</h3>
-              <p>查看我参与的投票记录</p>
+          </div>
+          <div className="stat-card stat-downvote">
+            <div className="stat-icon">👎</div>
+            <div className="stat-content">
+              <div className="stat-value">{stats.downvote}</div>
+              <div className="stat-label">反对</div>
             </div>
-            <div className="dashboard-card">
-              <div className="dashboard-icon">💬</div>
-              <h3>我的讨论</h3>
-              <p>查看我参与的讨论话题</p>
+          </div>
+          <div className="stat-card stat-abstain">
+            <div className="stat-icon">🤷</div>
+            <div className="stat-content">
+              <div className="stat-value">{stats.abstain}</div>
+              <div className="stat-label">弃权</div>
             </div>
           </div>
         </div>
 
-        {/* 提案广场 */}
-        <div className="proposals-section">
-          <div className="section-header">
-            <h2>提案广场</h2>
-            <p className="section-subtitle">展示所有审核通过的提案</p>
-          </div>
+        {/* 筛选器 */}
+        <div className="votes-filters">
+          <button
+            className={`filter-btn ${filter === 'all' ? 'active' : ''}`}
+            onClick={() => setFilter('all')}
+          >
+            全部 ({stats.total})
+          </button>
+          <button
+            className={`filter-btn filter-upvote ${filter === 'upvote' ? 'active' : ''}`}
+            onClick={() => setFilter('upvote')}
+          >
+            👍 支持 ({stats.upvote})
+          </button>
+          <button
+            className={`filter-btn filter-downvote ${filter === 'downvote' ? 'active' : ''}`}
+            onClick={() => setFilter('downvote')}
+          >
+            👎 反对 ({stats.downvote})
+          </button>
+          <button
+            className={`filter-btn filter-abstain ${filter === 'abstain' ? 'active' : ''}`}
+            onClick={() => setFilter('abstain')}
+          >
+            🤷 弃权 ({stats.abstain})
+          </button>
+        </div>
 
-          {/* 分类标签 */}
-          <div className="category-tabs">
-            {categories.map((category) => (
-              <button
-                key={category.key}
-                className={`category-tab category-tab-${category.key} ${activeCategory === category.key ? 'active' : ''}`}
-                onClick={() => setActiveCategory(category.key)}
-              >
-                <span className="category-label">{category.label}</span>
-                {category.count > 0 && (
-                  <span className="category-count">{category.count}</span>
-                )}
-              </button>
-            ))}
+        {/* 投票列表 */}
+        {loading ? (
+          <div className="loading">加载中...</div>
+        ) : error ? (
+          <div className="error-message">{error}</div>
+        ) : filteredVotes.length === 0 ? (
+          <div className="empty-state">
+            <div className="empty-icon">🗳️</div>
+            <p>暂无投票记录</p>
+            <p className="empty-hint">您还没有参与任何投票</p>
+            <button 
+              className="btn-primary"
+              onClick={() => navigate('/')}
+            >
+              去投票
+            </button>
           </div>
-
-          {/* 提案列表 */}
-          {loading ? (
-            <div className="loading">加载中...</div>
-          ) : error ? (
-            <div className="error-message">{error}</div>
-          ) : proposals.length === 0 ? (
-            <div className="empty-state">
-              <p>暂无{activeCategory === 'all' ? '' : categories.find(c => c.key === activeCategory)?.label}提案</p>
-              <p className="empty-hint">只有管理员审核通过的提案才会显示在这里</p>
-            </div>
-          ) : (
-            <div className="proposals-list">
-              {proposals.map((proposal) => {
-                const statusStyle = getStatusStyle(proposal.status);
-                // 格式化截至时间
-                const formatEndTime = (dateString) => {
-                  if (!dateString) return '未设置';
-                  const date = new Date(dateString);
-                  return date.toLocaleDateString('zh-CN', {
-                    year: 'numeric',
-                    month: 'short',
-                    day: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit'
-                  });
-                };
-                return (
-                  <div 
-                    key={proposal._id} 
-                    className="proposal-card"
-                  >
-                    {/* 卡片顶部信息 */}
-                    <div className="proposal-top-info">
-                      <div className="proposal-meta-top">
-                        <span className="proposal-author-top">
-                          <span className="author-icon">👤</span>
-                          {proposal.author?.name || '未知用户'}
-                        </span>
-                        {proposal.category && (
-                          <span className="proposal-category-badge">
-                            {proposal.category === 'general' ? '通用' : 
-                             proposal.category === 'academic' ? '学术' :
-                             proposal.category === 'campus' ? '校园' :
-                             proposal.category === 'welfare' ? '福利' :
-                             proposal.category === 'other' ? '其他' : proposal.category}
-                          </span>
-                        )}
-                        {proposal.endTime && (
-                          <span className="proposal-endtime">
-                            <span className="endtime-icon">⏰</span>
-                            截至 {formatEndTime(proposal.endTime)}
-                          </span>
-                        )}
-                      </div>
-                      <span 
-                        className="proposal-status"
-                        style={{ 
-                          backgroundColor: statusStyle.bg, 
-                          color: statusStyle.color 
-                        }}
-                      >
-                        {statusStyle.text}
+        ) : (
+          <div className="votes-list">
+            {filteredVotes.map((proposal) => {
+              const voteStyle = getVoteTypeStyle(proposal.myVoteType);
+              const isActive = isVotingActive(proposal);
+              
+              return (
+                <div key={proposal._id} className="vote-card">
+                  <div className="vote-card-header">
+                    <h3 className="vote-proposal-title">{proposal.title}</h3>
+                    <span 
+                      className="vote-badge"
+                      style={{ 
+                        backgroundColor: voteStyle.bg, 
+                        color: voteStyle.color 
+                      }}
+                    >
+                      <span className="vote-badge-icon">{voteStyle.icon}</span>
+                      {voteStyle.text}
+                    </span>
+                  </div>
+                  
+                  <p className="vote-proposal-description">{proposal.description}</p>
+                  
+                  <div className="vote-card-meta">
+                    <div className="vote-meta-left">
+                      <span className="vote-time">
+                        <span className="meta-icon">⏰</span>
+                        投票时间：{formatDate(proposal.myVoteTime)}
                       </span>
+                      {proposal.category && (
+                        <span className="vote-category">
+                          <span className="meta-icon">📁</span>
+                          {proposal.category === 'general' ? '通用' : 
+                           proposal.category === 'academic' ? '学术' :
+                           proposal.category === 'campus' ? '校园' :
+                           proposal.category === 'welfare' ? '福利' :
+                           proposal.category === 'other' ? '其他' : proposal.category}
+                        </span>
+                      )}
                     </div>
-                    
-                    {/* 标题和描述 */}
-                    <div className="proposal-content">
-                      <h3 className="proposal-title">{proposal.title}</h3>
-                      <p className="proposal-description">{proposal.description}</p>
-                    </div>
-                    
-                    {/* 图片 */}
-                    {proposal.images && proposal.images.length > 0 && (
-                      <div className="proposal-images">
-                        {proposal.images.slice(0, 3).map((image, index) => {
-                          const imageUrl = image.startsWith('http') 
-                            ? image 
-                            : `${import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:3001'}${image}`;
-                          return (
-                            <img
-                              key={index}
-                              src={imageUrl}
-                              alt={`提案图片 ${index + 1}`}
-                              className="proposal-image"
-                              onError={(e) => {
-                                e.target.style.display = 'none';
-                              }}
-                            />
-                          );
-                        })}
-                        {proposal.images.length > 3 && (
-                          <div className="proposal-image-more">
-                            +{proposal.images.length - 3}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                    
-                    {/* 底部统计和操作 */}
-                    <div className="proposal-footer">
-                      <div className="proposal-stats">
-                        <span className="stat-item stat-upvote">
-                          <span className="stat-icon">👍</span>
-                          <span className="stat-label">支持</span>
-                          <span className="stat-value">{proposal.votes?.upvotes || 0}</span>
-                        </span>
-                        <span className="stat-item stat-downvote">
-                          <span className="stat-icon">👎</span>
-                          <span className="stat-label">反对</span>
-                          <span className="stat-value">{proposal.votes?.downvotes || 0}</span>
-                        </span>
-                        <span className="stat-item stat-abstain">
-                          <span className="stat-icon">🤷</span>
-                          <span className="stat-label">弃权</span>
-                          <span className="stat-value">{proposal.votes?.abstains || 0}</span>
-                        </span>
-                      </div>
-                      <button 
-                        className="btn-view-detail"
-                        onClick={() => handleViewDetail(proposal._id)}
-                      >
-                        查看详情
-                        <span className="btn-arrow">→</span>
-                      </button>
+                    <div className="vote-meta-right">
+                      {isActive && (
+                        <span className="vote-status-active">进行中</span>
+                      )}
+                      {!isActive && proposal.endTime && new Date() > new Date(proposal.endTime) && (
+                        <span className="vote-status-ended">已结束</span>
+                      )}
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
 
-        {/* 提案详情弹窗 */}
+                  <div className="vote-card-footer">
+                    <div className="vote-stats">
+                      <span className="vote-stat-item">
+                        <span className="vote-stat-icon">👍</span>
+                        <span className="vote-stat-value">{proposal.votes?.upvotes || 0}</span>
+                      </span>
+                      <span className="vote-stat-item">
+                        <span className="vote-stat-icon">👎</span>
+                        <span className="vote-stat-value">{proposal.votes?.downvotes || 0}</span>
+                      </span>
+                      <span className="vote-stat-item">
+                        <span className="vote-stat-icon">🤷</span>
+                        <span className="vote-stat-value">{proposal.votes?.abstains || 0}</span>
+                      </span>
+                    </div>
+                    <button 
+                      className="btn-view-detail"
+                      onClick={() => handleViewDetail(proposal._id)}
+                    >
+                      查看详情
+                      <span className="btn-arrow">→</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* 提案详情弹窗（与首页保持一致体验） */}
         {showDetailModal && (
           <div className="modal-overlay" onClick={handleCloseModal}>
             <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -609,4 +550,5 @@ const Home = () => {
   );
 };
 
-export default Home;
+export default MyVotes;
+

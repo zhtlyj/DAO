@@ -7,6 +7,7 @@ import { dirname, join } from 'path';
 import connectDB from './config/database.js';
 import authRoutes from './routes/auth.js';
 import userRoutes from './routes/users.js';
+import proposalRoutes from './routes/proposals.js';
 
 // 加载环境变量
 dotenv.config();
@@ -45,6 +46,7 @@ app.get('/api/health', async (req, res) => {
 // API 路由
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/proposals', proposalRoutes);
 
 // 启动服务器
 app.listen(PORT, () => {

@@ -10,10 +10,15 @@ const Navbar = () => {
 
   // 根据角色获取菜单项
   const getMenuItems = () => {
+    // 根据角色决定提案菜单的标签和路径
+    const proposalMenu = user?.role === 'admin' 
+      ? { path: '/admin/proposals', label: '提案管理', icon: '📝', roles: ['admin'] }
+      : { path: '/proposals', label: '我的提案', icon: '📝', roles: ['student', 'teacher', 'student_representative', 'teacher_representative'] };
+
     const baseItems = [
       { path: '/', label: '首页', icon: '🏠', roles: ['student', 'teacher', 'student_representative', 'teacher_representative', 'admin'] },
-      { path: '/proposals', label: '提案管理', icon: '📝', roles: ['student', 'teacher', 'student_representative', 'teacher_representative', 'admin'] },
-      { path: '/voting', label: '投票中心', icon: '🗳️', roles: ['student', 'teacher', 'student_representative', 'teacher_representative', 'admin'] },
+      proposalMenu,
+      { path: '/my-votes', label: '我的投票', icon: '🗳️', roles: ['student', 'teacher', 'student_representative', 'teacher_representative', 'admin'] },
       { path: '/discussion', label: '讨论区', icon: '💬', roles: ['student', 'teacher', 'student_representative', 'teacher_representative', 'admin'] },
       { path: '/governance', label: '治理规则', icon: '📜', roles: ['student', 'teacher', 'student_representative', 'teacher_representative', 'admin'] },
     ];
