@@ -43,6 +43,45 @@ router.get('/', async (req, res) => {
   }
 });
 
+// 我参与的讨论（评论/回复过的提案）
+router.get('/my-discussions', async (req, res) => {
+  try {
+    const { page = 1, limit = 20 } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const userId = req.user._id;
+
+    const query = {
+      $or: [
+        { 'comments.user': userId },
+        { 'comments.replies.user': userId }
+      ]
+    };
+
+    const proposals = await Proposal.find(query)
+      .populate('author', 'name email avatar role')
+      .populate('votes.voterRecords.user', 'name email avatar')
+      .populate('comments.user', 'name email avatar role')
+      .populate('comments.replies.user', 'name email avatar role')
+      .sort({ updatedAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    const total = await Proposal.countDocuments(query);
+
+    res.json({
+      proposals,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / parseInt(limit))
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // 根据 ID 获取单个提案
 router.get('/:id', async (req, res) => {
   try {
@@ -276,6 +315,90 @@ router.post('/:id/vote', async (req, res) => {
 
     res.json({
       message: '投票成功',
+      proposal: updatedProposal
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// 新增评论
+router.post('/:id/comments', async (req, res) => {
+  try {
+    const { content } = req.body;
+    const proposalId = req.params.id;
+    const userId = req.user._id;
+
+    if (!content || !content.trim()) {
+      return res.status(400).json({ message: '评论内容不能为空' });
+    }
+
+    const proposal = await Proposal.findById(proposalId);
+
+    if (!proposal) {
+      return res.status(404).json({ message: '提案不存在' });
+    }
+
+    proposal.comments.push({
+      user: userId,
+      content: content.trim()
+    });
+
+    await proposal.save();
+
+    const updatedProposal = await Proposal.findById(proposalId)
+      .populate('author', 'name email avatar role')
+      .populate('votes.voterRecords.user', 'name email avatar')
+      .populate('comments.user', 'name email avatar role')
+      .populate('comments.replies.user', 'name email avatar role');
+
+    res.status(201).json({
+      message: '评论添加成功',
+      proposal: updatedProposal
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// 回复评论
+router.post('/:id/comments/:commentId/replies', async (req, res) => {
+  try {
+    const { content } = req.body;
+    const proposalId = req.params.id;
+    const { commentId } = req.params;
+    const userId = req.user._id;
+
+    if (!content || !content.trim()) {
+      return res.status(400).json({ message: '回复内容不能为空' });
+    }
+
+    const proposal = await Proposal.findById(proposalId);
+
+    if (!proposal) {
+      return res.status(404).json({ message: '提案不存在' });
+    }
+
+    const targetComment = proposal.comments.id(commentId);
+    if (!targetComment) {
+      return res.status(404).json({ message: '评论不存在' });
+    }
+
+    targetComment.replies.push({
+      user: userId,
+      content: content.trim()
+    });
+
+    await proposal.save();
+
+    const updatedProposal = await Proposal.findById(proposalId)
+      .populate('author', 'name email avatar role')
+      .populate('votes.voterRecords.user', 'name email avatar')
+      .populate('comments.user', 'name email avatar role')
+      .populate('comments.replies.user', 'name email avatar role');
+
+    res.status(201).json({
+      message: '回复添加成功',
       proposal: updatedProposal
     });
   } catch (error) {

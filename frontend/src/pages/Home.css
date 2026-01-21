@@ -1227,6 +1227,218 @@
   color: #1f2937;
 }
 
+/* 讨论区 */
+.comments-section {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.comment-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.comment-item {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 12px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+}
+
+.comment-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  gap: 8px;
+}
+
+.comment-author {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #1f2937;
+  font-weight: 600;
+}
+
+.comment-author-icon {
+  font-size: 16px;
+}
+
+.comment-author-name {
+  font-size: 14px;
+}
+
+.comment-time {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.comment-content {
+  margin: 0;
+  color: #374151;
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.comment-empty {
+  text-align: center;
+  color: #6b7280;
+  font-size: 14px;
+  padding: 12px;
+  background: white;
+  border: 1px dashed #e5e7eb;
+  border-radius: 10px;
+}
+
+.comment-form {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.comment-form textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 80px;
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  box-sizing: border-box;
+}
+
+.comment-form textarea:focus {
+  outline: none;
+  border-color: #2a5298;
+  box-shadow: 0 0 0 3px rgba(42, 82, 152, 0.15);
+}
+
+.comment-submit-btn {
+  align-self: flex-end;
+  padding: 8px 16px;
+}
+
+.comment-login-hint {
+  margin-top: 12px;
+  color: #6b7280;
+  font-size: 14px;
+  text-align: center;
+}
+
+/* 回复 */
+.reply-list {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-left: 12px;
+  border-left: 2px solid #e5e7eb;
+}
+
+.reply-item {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.reply-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+  gap: 8px;
+}
+
+.reply-author {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #1f2937;
+  font-weight: 600;
+}
+
+.reply-author-icon {
+  font-size: 14px;
+}
+
+.reply-author-name {
+  font-size: 13px;
+}
+
+.reply-time {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.reply-content {
+  margin: 0;
+  color: #374151;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.comment-actions {
+  margin-top: 8px;
+}
+
+.reply-toggle-btn {
+  background: none;
+  border: none;
+  color: #2a5298;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.reply-toggle-btn:hover {
+  text-decoration: underline;
+  color: #1e3d72;
+}
+
+.reply-form {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.reply-form textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 70px;
+  padding: 8px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: inherit;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  box-sizing: border-box;
+}
+
+.reply-form textarea:focus {
+  outline: none;
+  border-color: #2a5298;
+  box-shadow: 0 0 0 3px rgba(42, 82, 152, 0.15);
+}
+
+.reply-submit-btn {
+  align-self: flex-end;
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
 /* 中等屏幕：2列 */
 @media (max-width: 1024px) and (min-width: 769px) {
   .proposals-section .proposals-list {

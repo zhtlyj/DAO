@@ -15,6 +15,11 @@ const Home = () => {
   const [detailLoading, setDetailLoading] = useState(false);
   const [userVote, setUserVote] = useState(null); // 'upvote', 'downvote', 'abstain', null
   const [voting, setVoting] = useState(false);
+  const [commentContent, setCommentContent] = useState('');
+  const [commentSubmitting, setCommentSubmitting] = useState(false);
+  const [replyContentMap, setReplyContentMap] = useState({});
+  const [replySubmittingMap, setReplySubmittingMap] = useState({});
+  const [replyVisibleMap, setReplyVisibleMap] = useState({});
 
   // 获取审核通过的提案列表（只获取 active, passed, closed 状态的提案）
   useEffect(() => {
@@ -142,6 +147,10 @@ const Home = () => {
     setShowDetailModal(false);
     setSelectedProposal(null);
     setUserVote(null);
+    setCommentContent('');
+    setReplyContentMap({});
+    setReplySubmittingMap({});
+    setReplyVisibleMap({});
   };
 
   // 检查提案是否可投票
@@ -173,6 +182,63 @@ const Home = () => {
     } finally {
       setVoting(false);
     }
+  };
+
+  // 提交评论
+  const handleSubmitComment = async () => {
+    if (!selectedProposal || commentSubmitting) return;
+    if (!commentContent.trim()) {
+      setError('请输入评论内容');
+      return;
+    }
+
+    try {
+      setCommentSubmitting(true);
+      const response = await proposalAPI.addComment(selectedProposal._id, commentContent.trim());
+      setSelectedProposal(response.data.proposal);
+      setAllProposals(prev => prev.map(p => 
+        p._id === selectedProposal._id ? response.data.proposal : p
+      ));
+      setCommentContent('');
+    } catch (err) {
+      console.error('添加评论失败:', err);
+      setError(err.response?.data?.message || '添加评论失败，请稍后重试');
+    } finally {
+      setCommentSubmitting(false);
+    }
+  };
+
+  // 提交回复
+  const handleSubmitReply = async (commentId) => {
+    if (!selectedProposal || replySubmittingMap[commentId]) return;
+    const content = replyContentMap[commentId]?.trim() || '';
+    if (!content) {
+      setError('请输入回复内容');
+      return;
+    }
+
+    try {
+      setReplySubmittingMap(prev => ({ ...prev, [commentId]: true }));
+      const response = await proposalAPI.addReply(selectedProposal._id, commentId, content);
+      setSelectedProposal(response.data.proposal);
+      setAllProposals(prev => prev.map(p =>
+        p._id === selectedProposal._id ? response.data.proposal : p
+      ));
+      setReplyContentMap(prev => ({ ...prev, [commentId]: '' }));
+    } catch (err) {
+      console.error('添加回复失败:', err);
+      setError(err.response?.data?.message || '添加回复失败，请稍后重试');
+    } finally {
+      setReplySubmittingMap(prev => ({ ...prev, [commentId]: false }));
+    }
+  };
+
+  // 切换回复框显示
+  const handleToggleReply = (commentId) => {
+    setReplyVisibleMap(prev => ({
+      ...prev,
+      [commentId]: !prev[commentId]
+    }));
   };
 
   // 根据时间判断提案状态并统计
@@ -250,7 +316,7 @@ const Home = () => {
               <h3>我的投票</h3>
               <p>查看我参与的投票记录</p>
             </div>
-            <div className="dashboard-card">
+            <div className="dashboard-card" onClick={() => window.location.href = '/discussion'}>
               <div className="dashboard-icon">💬</div>
               <h3>我的讨论</h3>
               <p>查看我参与的讨论话题</p>
@@ -596,6 +662,109 @@ const Home = () => {
                         </div>
                       </div>
                     )}
+
+                    {/* 讨论区 */}
+                    <div className="detail-section comments-section">
+                      <h3 className="detail-section-title">讨论</h3>
+                      {selectedProposal.comments && selectedProposal.comments.length > 0 ? (
+                        <div className="comment-list">
+                          {selectedProposal.comments.map((comment, index) => (
+                            <div key={comment._id || index} className="comment-item">
+                              <div className="comment-header">
+                                <div className="comment-author">
+                                  <span className="comment-author-icon">💬</span>
+                                  <span className="comment-author-name">
+                                    {comment.user?.name || '匿名用户'}
+                                  </span>
+                                </div>
+                                <span className="comment-time">
+                                  {formatTimeShort(comment.createdAt)}
+                                </span>
+                              </div>
+                              <p className="comment-content">{comment.content}</p>
+
+                              {/* 回复列表 */}
+                              {comment.replies && comment.replies.length > 0 && (
+                                <div className="reply-list">
+                                  {comment.replies.map((reply) => (
+                                    <div key={reply._id} className="reply-item">
+                                      <div className="reply-header">
+                                        <div className="reply-author">
+                                          <span className="reply-author-icon">↩</span>
+                                          <span className="reply-author-name">
+                                            {reply.user?.name || '匿名用户'}
+                                          </span>
+                                        </div>
+                                        <span className="reply-time">{formatTimeShort(reply.createdAt)}</span>
+                                      </div>
+                                      <p className="reply-content">{reply.content}</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+
+                              <div className="comment-actions">
+                                <button
+                                  className="reply-toggle-btn"
+                                  onClick={() => handleToggleReply(comment._id)}
+                                >
+                                  {replyVisibleMap[comment._id] ? '收起回复' : '回复'}
+                                </button>
+                              </div>
+
+                              {/* 回复输入 - 点击后展示 */}
+                              {replyVisibleMap[comment._id] && (
+                                user ? (
+                                  <div className="reply-form">
+                                    <textarea
+                                      value={replyContentMap[comment._id] || ''}
+                                      onChange={(e) => setReplyContentMap(prev => ({ ...prev, [comment._id]: e.target.value }))}
+                                      placeholder="回复该评论..."
+                                      rows={2}
+                                    />
+                                    <button
+                                      className="btn-primary reply-submit-btn"
+                                      onClick={() => handleSubmitReply(comment._id)}
+                                      disabled={replySubmittingMap[comment._id]}
+                                    >
+                                      {replySubmittingMap[comment._id] ? '发布中...' : '发布回复'}
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <div className="comment-login-hint">
+                                    请登录后参与讨论
+                                  </div>
+                                )
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="comment-empty">暂无讨论，快来发表第一条评论吧</div>
+                      )}
+
+                      {user ? (
+                        <div className="comment-form">
+                          <textarea
+                            value={commentContent}
+                            onChange={(e) => setCommentContent(e.target.value)}
+                            placeholder="发表你的看法..."
+                            rows={3}
+                          />
+                          <button
+                            className="btn-primary comment-submit-btn"
+                            onClick={handleSubmitComment}
+                            disabled={commentSubmitting}
+                          >
+                            {commentSubmitting ? '发布中...' : '发布评论'}
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="comment-login-hint">
+                          请登录后参与讨论
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               ) : (

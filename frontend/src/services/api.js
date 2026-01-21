@@ -65,6 +65,7 @@ export const userAPI = {
 // 提案相关 API
 export const proposalAPI = {
   getProposals: (params) => api.get('/proposals', { params }),
+  getMyDiscussions: (params) => api.get('/proposals/my-discussions', { params }),
   getProposalById: (id) => api.get(`/proposals/${id}`),
   createProposal: (formData) => {
     return api.post('/proposals', formData, {
@@ -77,6 +78,8 @@ export const proposalAPI = {
   deleteProposal: (id) => api.delete(`/proposals/${id}`),
   voteProposal: (id, voteType) => api.post(`/proposals/${id}/vote`, { voteType }),
   getMyVote: (id) => api.get(`/proposals/${id}/my-vote`),
+  addComment: (id, content) => api.post(`/proposals/${id}/comments`, { content }),
+  addReply: (id, commentId, content) => api.post(`/proposals/${id}/comments/${commentId}/replies`, { content }),
 };
 
 export default api;

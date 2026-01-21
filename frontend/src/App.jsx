@@ -7,6 +7,7 @@ import Profile from './pages/Profile';
 import Proposals from './pages/Proposals';
 import AdminProposals from './pages/AdminProposals';
 import MyVotes from './pages/MyVotes';
+import Discussion from './pages/Discussion';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
 import './App.css';
@@ -14,14 +15,6 @@ const Voting = () => (
   <Layout>
     <div style={{ padding: '40px', textAlign: 'center' }}>
       <h2>投票中心</h2>
-      <p>功能开发中...</p>
-    </div>
-  </Layout>
-);
-const Discussion = () => (
-  <Layout>
-    <div style={{ padding: '40px', textAlign: 'center' }}>
-      <h2>讨论区</h2>
       <p>功能开发中...</p>
     </div>
   </Layout>
