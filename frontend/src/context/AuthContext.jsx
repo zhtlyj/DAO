@@ -44,9 +44,9 @@ export const AuthProvider = ({ children }) => {
     initAuth();
   }, []);
 
-  const login = async (email, password) => {
+  const login = async (identifier, password) => {
     try {
-      const response = await authAPI.login({ email, password });
+      const response = await authAPI.login({ identifier, password });
       const { token: newToken, user: userData } = response.data;
       
       localStorage.setItem('token', newToken);
@@ -58,7 +58,7 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       return {
         success: false,
-        message: error.response?.data?.message || '登录失败，请检查邮箱和密码',
+        message: error.response?.data?.message || '登录失败，请检查账号和密码',
       };
     }
   };

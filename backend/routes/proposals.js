@@ -11,12 +11,17 @@ router.use(authenticate);
 // 获取所有提案（所有用户都可以查看）
 router.get('/', async (req, res) => {
   try {
-    const { status, page = 1, limit = 10 } = req.query;
+    const { status, page = 1, limit = 10, scope } = req.query;
     const query = {};
     
     // 如果指定了状态，则过滤
     if (status) {
       query.status = status;
+    }
+
+    // scope=mine 时仅返回当前用户提交的提案
+    if (scope === 'mine') {
+      query.author = req.user._id;
     }
 
     const skip = (parseInt(page) - 1) * parseInt(limit);

@@ -1,0 +1,230 @@
+.admin-users-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.admin-users-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.admin-users-filters {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.filter-group label {
+  font-size: 13px;
+  color: #4b5563;
+}
+
+.filter-group select,
+.filter-group input {
+  padding: 8px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  min-width: 180px;
+  font-size: 14px;
+}
+
+.user-table {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+}
+
+.user-table-header,
+.user-table-row {
+  display: grid;
+  grid-template-columns: 1.2fr 1.6fr 1fr 1fr 1fr 0.8fr 1fr;
+  padding: 12px 16px;
+  gap: 8px;
+  align-items: center;
+}
+
+.user-table-header {
+  background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%);
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.user-table-row {
+  border-top: 1px solid #f3f4f6;
+  font-size: 14px;
+  color: #374151;
+  transition: background 0.2s ease, transform 0.1s ease;
+}
+
+.user-table-row:nth-child(odd) {
+  background: #fcfcfd;
+}
+
+.status-badge {
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.status-badge.active {
+  background: #ecfdf3;
+  color: #059669;
+  border: 1px solid #bbf7d0;
+}
+
+.status-badge.inactive {
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecdd3;
+}
+
+@media (max-width: 900px) {
+  .user-table-header,
+  .user-table-row {
+    grid-template-columns: 1fr 1.2fr 0.9fr 1fr;
+    grid-template-areas:
+      "name email role status"
+      "dept dept sid sid";
+  }
+
+  .user-table-header span:nth-child(4),
+  .user-table-header span:nth-child(5) {
+    display: none;
+  }
+
+  .user-table-row span:nth-child(4),
+  .user-table-row span:nth-child(5) {
+    display: none;
+  }
+
+.inline-input {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 13px;
+  box-sizing: border-box;
+}
+
+.user-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.btn-small {
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: none;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-weight: 600;
+}
+
+.btn-small.ghost {
+  background: #f3f4f6;
+  color: #374151;
+  border: 1px solid #e5e7eb;
+}
+
+.btn-small.primary {
+  background: #2a5298;
+  color: #fff;
+  box-shadow: 0 2px 6px rgba(42, 82, 152, 0.25);
+}
+
+.btn-small.danger {
+  background: linear-gradient(135deg, #fee2e2 0%, #fecdd3 100%);
+  color: #b91c1c;
+  border: 1px solid #fecdd3;
+}
+
+.btn-small:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-small:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+.btn-small.danger:hover:not(:disabled) {
+  color: #991b1b;
+  border-color: #fca5a5;
+  background: linear-gradient(135deg, #fecdd3 0%, #fca5a5 100%);
+}
+
+.btn-small.primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #2a5298 0%, #1e3d72 100%);
+  box-shadow: 0 4px 14px rgba(42, 82, 152, 0.35);
+}
+
+.btn-small.ghost:hover:not(:disabled) {
+  background: #e5e7eb;
+}
+
+.user-actions .btn-small {
+  min-width: 64px;
+  text-align: center;
+}
+
+.user-actions {
+  justify-content: flex-end;
+}
+
+.user-table-row:hover {
+  background: #f8fafc;
+  transform: translateY(-1px);
+}
+
+.user-table-row span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.user-actions {
+  justify-content: flex-end;
+}
+
+.inline-input:focus {
+  outline: none;
+  border-color: #2a5298;
+  box-shadow: 0 0 0 3px rgba(42, 82, 152, 0.12);
+}
+}
+
+@media (max-width: 640px) {
+  .user-table-header,
+  .user-table-row {
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "name email"
+      "role status"
+      "dept sid";
+  }
+
+  .user-table-header span {
+    font-size: 12px;
+  }
+
+  .user-table-row {
+    font-size: 13px;
+  }
+}
+

@@ -12,15 +12,15 @@ const generateToken = (id) => {
   });
 };
 
-// 注册
+// 注册（学号/工号 + 密码）
 router.post('/register', async (req, res) => {
   try {
-    const { name, email, password, role, studentId, department } = req.body;
+    const { name, identifier, password, role, department } = req.body;
 
     // 验证必填字段
-    if (!name || !email || !password || !role) {
+    if (!name || !identifier || !password || !role) {
       return res.status(400).json({ 
-        message: '请提供所有必填字段: name, email, password, role' 
+        message: '请提供必填字段: 姓名、学号/工号、密码、角色' 
       });
     }
 
@@ -28,33 +28,26 @@ router.post('/register', async (req, res) => {
     const validRoles = ['student', 'teacher', 'student_representative', 'teacher_representative', 'admin'];
     if (!validRoles.includes(role)) {
       return res.status(400).json({ 
-        message: `无效的角色，必须是以下之一: ${validRoles.join(', ')}` 
+        message: `无效的角色，必须是: ${validRoles.join(', ')}` 
       });
     }
 
-    // 检查邮箱是否已存在
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.status(400).json({ message: '该邮箱已被注册' });
+    // 检查学号/工号是否已存在
+    const existingId = await User.findOne({ studentId: identifier });
+    if (existingId) {
+      return res.status(400).json({ message: '该学号/工号已被使用' });
     }
 
-    // 如果是学生角色，检查学号是否已存在
-    if (role === 'student' || role === 'student_representative') {
-      if (studentId) {
-        const existingStudentId = await User.findOne({ studentId });
-        if (existingStudentId) {
-          return res.status(400).json({ message: '该学号/工号已被使用' });
-        }
-      }
-    }
+    // 为满足 schema 的 email 唯一性，用 identifier 生成占位邮箱
+    const derivedEmail = `${identifier}@id.local`;
 
     // 创建新用户
     const user = new User({
       name,
-      email,
+      email: derivedEmail,
       password,
       role,
-      studentId: studentId || undefined,
+      studentId: identifier,
       department: department || undefined
     });
 
@@ -84,20 +77,22 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// 登录
+// 登录（学号/工号 + 密码）
 router.post('/login', async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { identifier, password } = req.body; // identifier: 学号/工号
 
-    if (!email || !password) {
-      return res.status(400).json({ message: '请提供邮箱和密码' });
+    if (!identifier || !password) {
+      return res.status(400).json({ message: '请提供学号/工号和密码' });
     }
 
-    // 查找用户，包含密码字段
-    const user = await User.findOne({ email }).select('+password');
+    // 支持学号/工号匹配（studentId），兼容历史可选邮箱登录
+    const user = await User.findOne({
+      $or: [{ studentId: identifier }, { email: identifier }]
+    }).select('+password');
     
     if (!user) {
-      return res.status(401).json({ message: '邮箱或密码错误' });
+      return res.status(401).json({ message: '账号或密码错误' });
     }
 
     // 检查账户是否激活
@@ -108,7 +103,7 @@ router.post('/login', async (req, res) => {
     // 验证密码
     const isPasswordValid = await user.comparePassword(password);
     if (!isPasswordValid) {
-      return res.status(401).json({ message: '邮箱或密码错误' });
+      return res.status(401).json({ message: '账号或密码错误' });
     }
 
     // 生成 token
@@ -123,7 +118,8 @@ router.post('/login', async (req, res) => {
         email: user.email,
         role: user.role,
         studentId: user.studentId,
-        department: user.department
+        department: user.department,
+        points: user.points || 0
       }
     });
   } catch (error) {
@@ -144,7 +140,8 @@ router.get('/me', authenticate, async (req, res) => {
         studentId: user.studentId,
         department: user.department,
         isActive: user.isActive,
-        createdAt: user.createdAt
+        createdAt: user.createdAt,
+        points: user.points || 0
       }
     });
   } catch (error) {

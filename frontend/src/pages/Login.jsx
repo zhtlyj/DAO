@@ -6,7 +6,7 @@ import './Auth.css';
 const Login = () => {
   const location = useLocation();
   const [formData, setFormData] = useState({
-    email: location.state?.email || '',
+    identifier: location.state?.email || '',
     password: '',
   });
   const [error, setError] = useState('');
@@ -42,7 +42,7 @@ const Login = () => {
     setError('');
     setLoading(true);
 
-    const result = await login(formData.email, formData.password);
+    const result = await login(formData.identifier, formData.password);
     
     setLoading(false);
     
@@ -66,15 +66,15 @@ const Login = () => {
           {error && <div className="error-message">{error}</div>}
           
           <div className="form-group">
-            <label htmlFor="email">邮箱</label>
+            <label htmlFor="identifier">学号/工号</label>
             <input
-              type="email"
-              id="email"
-              name="email"
-              value={formData.email}
+              type="text"
+              id="identifier"
+              name="identifier"
+              value={formData.identifier}
               onChange={handleChange}
               required
-              placeholder="请输入邮箱"
+              placeholder="请输入学号（学生）或工号（教师/管理员）"
             />
           </div>
 

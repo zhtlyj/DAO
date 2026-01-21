@@ -1,0 +1,156 @@
+.governance-page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.governance-hero {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 20px;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.hero-badge {
+  display: inline-flex;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #4338ca;
+  font-weight: 700;
+  font-size: 13px;
+  margin: 0 0 8px 0;
+}
+
+.governance-hero h1 {
+  margin: 0 0 10px 0;
+  font-size: 26px;
+  color: #111827;
+}
+
+.hero-subtitle {
+  margin: 0 0 16px 0;
+  color: #4b5563;
+  line-height: 1.6;
+}
+
+.hero-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.hero-card {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.hero-card-title {
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 10px;
+}
+
+.hero-card ul {
+  margin: 0;
+  padding-left: 18px;
+  color: #4b5563;
+  line-height: 1.6;
+}
+
+.governance-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.gov-card {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.gov-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.gov-card-icon {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #eef2ff;
+  color: #4338ca;
+  border-radius: 10px;
+  font-size: 18px;
+}
+
+.gov-card h3 {
+  margin: 0;
+  color: #111827;
+  font-size: 16px;
+}
+
+.gov-list {
+  margin: 0;
+  padding-left: 18px;
+  color: #4b5563;
+  line-height: 1.6;
+}
+
+.gov-footer {
+  display: flex;
+  justify-content: center;
+}
+
+.gov-footer-card {
+  width: 100%;
+  max-width: 820px;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.gov-footer-title {
+  font-weight: 700;
+  color: #111827;
+}
+
+.gov-footer-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 900px) {
+  .governance-hero {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .governance-grid {
+    grid-template-columns: 1fr;
+  }
+}
+

@@ -8,6 +8,10 @@ import Proposals from './pages/Proposals';
 import AdminProposals from './pages/AdminProposals';
 import MyVotes from './pages/MyVotes';
 import Discussion from './pages/Discussion';
+import Governance from './pages/Governance';
+import AdminUsers from './pages/AdminUsers';
+import AdminStatistics from './pages/AdminStatistics';
+import Achievements from './pages/Achievements';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
 import './App.css';
@@ -19,34 +23,10 @@ const Voting = () => (
     </div>
   </Layout>
 );
-const Governance = () => (
-  <Layout>
-    <div style={{ padding: '40px', textAlign: 'center' }}>
-      <h2>治理规则</h2>
-      <p>功能开发中...</p>
-    </div>
-  </Layout>
-);
 const CreateProposal = () => (
   <Layout>
     <div style={{ padding: '40px', textAlign: 'center' }}>
       <h2>提交提案</h2>
-      <p>功能开发中...</p>
-    </div>
-  </Layout>
-);
-const AdminUsers = () => (
-  <Layout>
-    <div style={{ padding: '40px', textAlign: 'center' }}>
-      <h2>用户管理</h2>
-      <p>功能开发中...</p>
-    </div>
-  </Layout>
-);
-const AdminStatistics = () => (
-  <Layout>
-    <div style={{ padding: '40px', textAlign: 'center' }}>
-      <h2>数据统计</h2>
       <p>功能开发中...</p>
     </div>
   </Layout>
@@ -116,6 +96,14 @@ function App() {
             }
           />
           <Route
+            path="/achievements"
+            element={
+              <ProtectedRoute>
+                <Achievements />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/discussion"
             element={
               <ProtectedRoute>
@@ -134,7 +122,7 @@ function App() {
           <Route
             path="/admin/users"
             element={
-              <ProtectedRoute requiredRole="admin">
+              <ProtectedRoute allowedRoles={['admin', 'student_representative', 'teacher_representative']}>
                 <AdminUsers />
               </ProtectedRoute>
             }

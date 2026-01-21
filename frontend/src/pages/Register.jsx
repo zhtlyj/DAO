@@ -6,11 +6,10 @@ import './Auth.css';
 const Register = () => {
   const [formData, setFormData] = useState({
     name: '',
-    email: '',
+    identifier: '',
     password: '',
     confirmPassword: '',
     role: 'student',
-    studentId: '',
     department: '',
   });
   const [error, setError] = useState('');
@@ -46,22 +45,11 @@ const Register = () => {
     // 准备注册数据
     const registerData = {
       name: formData.name,
-      email: formData.email,
+      identifier: formData.identifier,
       password: formData.password,
       role: formData.role,
+      department: formData.department || undefined,
     };
-
-    // 如果是学生相关角色，添加学号/工号
-    if (formData.role === 'student' || formData.role === 'student_representative') {
-      if (formData.studentId) {
-        registerData.studentId = formData.studentId;
-      }
-    }
-
-    // 添加部门信息
-    if (formData.department) {
-      registerData.department = formData.department;
-    }
 
     const result = await register(registerData);
     
@@ -71,8 +59,8 @@ const Register = () => {
       // 注册成功后跳转到登录页
       navigate('/login', { 
         state: { 
-          message: '注册成功！请使用您的邮箱和密码登录。',
-          email: formData.email 
+          message: '注册成功！请使用学号/工号和密码登录。',
+          email: formData.identifier 
         } 
       });
     } else {
@@ -87,8 +75,6 @@ const Register = () => {
     { value: 'teacher_representative', label: '教师代表' },
     { value: 'admin', label: '管理员' },
   ];
-
-  const isStudentRole = formData.role === 'student' || formData.role === 'student_representative';
 
   return (
     <div className="auth-container">
@@ -115,15 +101,15 @@ const Register = () => {
           </div>
 
           <div className="form-group">
-            <label htmlFor="email">邮箱 *</label>
+            <label htmlFor="identifier">学号/工号 *</label>
             <input
-              type="email"
-              id="email"
-              name="email"
-              value={formData.email}
+              type="text"
+              id="identifier"
+              name="identifier"
+              value={formData.identifier}
               onChange={handleChange}
               required
-              placeholder="请输入邮箱"
+              placeholder="学生填学号，教师/管理员填工号"
             />
           </div>
 
@@ -143,20 +129,6 @@ const Register = () => {
               ))}
             </select>
           </div>
-
-          {isStudentRole && (
-            <div className="form-group">
-              <label htmlFor="studentId">学号/工号</label>
-              <input
-                type="text"
-                id="studentId"
-                name="studentId"
-                value={formData.studentId}
-                onChange={handleChange}
-                placeholder="请输入学号/工号（可选）"
-              />
-            </div>
-          )}
 
           <div className="form-group">
             <label htmlFor="department">部门/院系</label>

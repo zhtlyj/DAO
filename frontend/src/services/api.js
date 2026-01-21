@@ -82,5 +82,15 @@ export const proposalAPI = {
   addReply: (id, commentId, content) => api.post(`/proposals/${id}/comments/${commentId}/replies`, { content }),
 };
 
+// 统计相关 API
+export const statisticsAPI = {
+  getOverview: () => api.get('/statistics'),
+};
+
+// 成就与积分
+export const achievementAPI = {
+  getMyAchievements: () => api.get('/achievements/me'),
+};
+
 export default api;
 

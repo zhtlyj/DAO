@@ -35,7 +35,7 @@ const Proposals = () => {
   const fetchProposals = async () => {
     try {
       setLoading(true);
-      const params = { limit: 20 };
+      const params = { limit: 20, scope: 'mine' }; // 只获取当前用户提交的提案
       if (statusFilter) {
         params.status = statusFilter;
       }

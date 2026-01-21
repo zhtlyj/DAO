@@ -21,16 +21,17 @@ const Navbar = () => {
       { path: '/my-votes', label: '我的投票', icon: '🗳️', roles: ['student', 'teacher', 'student_representative', 'teacher_representative', 'admin'] },
       { path: '/discussion', label: '讨论区', icon: '💬', roles: ['student', 'teacher', 'student_representative', 'teacher_representative', 'admin'] },
       { path: '/governance', label: '治理规则', icon: '📜', roles: ['student', 'teacher', 'student_representative', 'teacher_representative', 'admin'] },
+      { path: '/achievements', label: '成就与积分', icon: '🏅', roles: ['student', 'teacher', 'student_representative', 'teacher_representative', 'admin'] },
     ];
 
-    // 代表角色可以提交提案
+    // 提交提案入口（仅学生/教师）
     const representativeItems = [
-      { path: '/proposals/create', label: '提交提案', icon: '✍️', roles: ['student_representative', 'teacher_representative', 'admin'] },
+      { path: '/proposals/create', label: '提交提案', icon: '✍️', roles: ['student', 'teacher'] },
     ];
 
     // 管理员专属菜单
     const adminItems = [
-      { path: '/admin/users', label: '用户管理', icon: '👥', roles: ['admin'] },
+      { path: '/admin/users', label: '用户管理', icon: '👥', roles: ['admin', 'student_representative', 'teacher_representative'] },
       { path: '/admin/statistics', label: '数据统计', icon: '📊', roles: ['admin'] },
       { path: '/admin/settings', label: '系统设置', icon: '⚙️', roles: ['admin'] },
     ];
@@ -70,18 +71,26 @@ const Navbar = () => {
           ))}
         </ul>
 
-        {/* 移动端菜单按钮 */}
-        <button
-          className="navbar-toggle"
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          aria-label="切换菜单"
-        >
-          <span className={`hamburger ${mobileMenuOpen ? 'active' : ''}`}>
-            <span></span>
-            <span></span>
-            <span></span>
-          </span>
-        </button>
+        <div className="navbar-right">
+          {user && (
+            <div className="navbar-points">
+              <span className="points-icon">🏅</span>
+              <span className="points-value">{user.points || 0} 分</span>
+            </div>
+          )}
+          {/* 移动端菜单按钮 */}
+          <button
+            className="navbar-toggle"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            aria-label="切换菜单"
+          >
+            <span className={`hamburger ${mobileMenuOpen ? 'active' : ''}`}>
+              <span></span>
+              <span></span>
+              <span></span>
+            </span>
+          </button>
+        </div>
       </div>
 
       {/* 移动端下拉菜单 */}

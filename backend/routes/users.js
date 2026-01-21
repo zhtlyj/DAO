@@ -13,10 +13,26 @@ const router = express.Router();
 // 所有路由都需要认证
 router.use(authenticate);
 
-// 获取所有用户（仅管理员）
-router.get('/', authorize('admin'), async (req, res) => {
+// 获取当前角色可管理的用户
+router.get('/', async (req, res) => {
   try {
-    const users = await User.find().select('-password');
+    const role = req.user.role;
+
+    // 系统管理员可管理全部
+    let query = {};
+
+    if (role === 'student_representative') {
+      query = { role: 'student' };
+    } else if (role === 'teacher_representative') {
+      query = { role: 'teacher' };
+    } else if (role === 'admin') {
+      // 管理员默认查看所有，但至少包含代表与教师/学生
+      query = {};
+    } else {
+      return res.status(403).json({ message: '无权查看用户列表' });
+    }
+
+    const users = await User.find(query).select('-password');
     res.json(users);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -26,16 +42,26 @@ router.get('/', authorize('admin'), async (req, res) => {
 // 根据 ID 获取用户
 router.get('/:id', async (req, res) => {
   try {
-    // 用户只能查看自己的信息，除非是管理员
-    if (req.user.role !== 'admin' && req.user._id.toString() !== req.params.id) {
+    const targetUser = await User.findById(req.params.id).select('-password');
+    if (!targetUser) {
+      return res.status(404).json({ message: '用户不存在' });
+    }
+
+    const requester = req.user;
+
+    const canAccess = () => {
+      if (requester._id.toString() === targetUser._id.toString()) return true;
+      if (requester.role === 'admin') return true;
+      if (requester.role === 'student_representative' && targetUser.role === 'student') return true;
+      if (requester.role === 'teacher_representative' && targetUser.role === 'teacher') return true;
+      return false;
+    };
+
+    if (!canAccess()) {
       return res.status(403).json({ message: '无权访问该用户信息' });
     }
 
-    const user = await User.findById(req.params.id).select('-password');
-    if (!user) {
-      return res.status(404).json({ message: '用户不存在' });
-    }
-    res.json(user);
+    res.json(targetUser);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -77,11 +103,22 @@ router.post('/:id/avatar', upload.single('avatar'), async (req, res) => {
   }
 });
 
-// 更新用户（只能更新自己的信息，管理员可以更新任何用户）
+// 更新用户（只能更新自己的信息；管理员可更新任意；代表可更新其管辖成员）
 router.put('/:id', async (req, res) => {
   try {
-    // 检查权限
-    if (req.user.role !== 'admin' && req.user._id.toString() !== req.params.id) {
+    const requester = req.user;
+    const target = await User.findById(req.params.id);
+    if (!target) {
+      return res.status(404).json({ message: '用户不存在' });
+    }
+
+    const isSelf = requester._id.toString() === target._id.toString();
+    const canManage =
+      requester.role === 'admin' ||
+      (requester.role === 'student_representative' && target.role === 'student') ||
+      (requester.role === 'teacher_representative' && target.role === 'teacher');
+
+    if (!isSelf && !canManage) {
       return res.status(403).json({ message: '无权修改该用户信息' });
     }
 
@@ -95,21 +132,18 @@ router.put('/:id', async (req, res) => {
     if (avatar !== undefined) updateData.avatar = avatar;
 
     // 只有管理员可以修改角色和激活状态
-    if (req.user.role === 'admin') {
+    if (requester.role === 'admin') {
       if (req.body.role) updateData.role = req.body.role;
       if (req.body.isActive !== undefined) updateData.isActive = req.body.isActive;
     }
 
-    const user = await User.findByIdAndUpdate(
+    const updated = await User.findByIdAndUpdate(
       req.params.id,
       updateData,
       { new: true, runValidators: true }
     ).select('-password');
 
-    if (!user) {
-      return res.status(404).json({ message: '用户不存在' });
-    }
-    res.json(user);
+    res.json(updated);
   } catch (error) {
     res.status(400).json({ message: error.message });
   }
