@@ -394,6 +394,13 @@ const Home = () => {
                              proposal.category === 'other' ? '其他' : proposal.category}
                           </span>
                         )}
+                        {proposal.visibility && (
+                          <span className="proposal-visibility-badge">
+                            {proposal.visibility === 'all' ? '全部可见' :
+                             proposal.visibility === 'student' ? '仅学生' :
+                             proposal.visibility === 'teacher' ? '仅教师' : proposal.visibility}
+                          </span>
+                        )}
                         {proposal.endTime && (
                           <span className="proposal-endtime">
                             <span className="endtime-icon">⏰</span>

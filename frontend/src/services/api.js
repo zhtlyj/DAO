@@ -92,5 +92,11 @@ export const achievementAPI = {
   getMyAchievements: () => api.get('/achievements/me'),
 };
 
+// 系统设置
+export const settingsAPI = {
+  getSettings: () => api.get('/settings'),
+  updateSettings: (data) => api.put('/settings', data),
+};
+
 export default api;
 

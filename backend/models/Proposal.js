@@ -35,6 +35,14 @@ const proposalSchema = new mongoose.Schema({
     trim: true,
     default: 'general'
   },
+  visibility: {
+    type: String,
+    enum: {
+      values: ['student', 'teacher', 'all'],
+      message: '可视范围必须是: student, teacher, all'
+    },
+    default: 'all'
+  },
   images: [{
     type: String,
     trim: true

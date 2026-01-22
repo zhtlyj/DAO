@@ -10,6 +10,7 @@ import userRoutes from './routes/users.js';
 import proposalRoutes from './routes/proposals.js';
 import statisticsRoutes from './routes/statistics.js';
 import achievementRoutes from './routes/achievements.js';
+import settingsRoutes from './routes/settings.js';
 
 // 加载环境变量
 dotenv.config();
@@ -51,6 +52,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/proposals', proposalRoutes);
 app.use('/api/statistics', statisticsRoutes);
 app.use('/api/achievements', achievementRoutes);
+app.use('/api/settings', settingsRoutes);
 
 // 启动服务器
 app.listen(PORT, () => {

@@ -11,6 +11,7 @@ import Discussion from './pages/Discussion';
 import Governance from './pages/Governance';
 import AdminUsers from './pages/AdminUsers';
 import AdminStatistics from './pages/AdminStatistics';
+import AdminSettings from './pages/AdminSettings';
 import Achievements from './pages/Achievements';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
@@ -27,14 +28,6 @@ const CreateProposal = () => (
   <Layout>
     <div style={{ padding: '40px', textAlign: 'center' }}>
       <h2>提交提案</h2>
-      <p>功能开发中...</p>
-    </div>
-  </Layout>
-);
-const AdminSettings = () => (
-  <Layout>
-    <div style={{ padding: '40px', textAlign: 'center' }}>
-      <h2>系统设置</h2>
       <p>功能开发中...</p>
     </div>
   </Layout>

@@ -15,6 +15,7 @@ const Proposals = () => {
     title: '',
     description: '',
     category: 'general',
+    visibility: 'all',
     startTime: '',
     endTime: ''
   });
@@ -127,6 +128,7 @@ const Proposals = () => {
       submitData.append('title', formData.title);
       submitData.append('description', formData.description);
       submitData.append('category', formData.category);
+      submitData.append('visibility', formData.visibility);
       // 将本地时间转换为ISO格式
       submitData.append('startTime', new Date(formData.startTime).toISOString());
       submitData.append('endTime', new Date(formData.endTime).toISOString());
@@ -137,7 +139,7 @@ const Proposals = () => {
       });
 
       await proposalAPI.createProposal(submitData);
-      setFormData({ title: '', description: '', category: 'general', startTime: '', endTime: '' });
+      setFormData({ title: '', description: '', category: 'general', visibility: 'all', startTime: '', endTime: '' });
       setSelectedImages([]);
       setImagePreviews([]);
       setShowCreateForm(false);
@@ -268,6 +270,24 @@ const Proposals = () => {
                   <option value="other">其他</option>
                 </select>
               </div>
+              <div className="form-group">
+                <label htmlFor="visibility">可视范围 *</label>
+                <select
+                  id="visibility"
+                  value={formData.visibility}
+                  onChange={(e) => setFormData({ ...formData, visibility: e.target.value })}
+                  required
+                >
+                  <option value="all">全部可见</option>
+                  {user?.role === 'student' && <option value="student">仅学生可见</option>}
+                  {user?.role === 'teacher' && <option value="teacher">仅教师可见</option>}
+                </select>
+                <span className="form-hint">
+                  {user?.role === 'student' && '学生只能创建"全部可见"或"仅学生可见"的提案'}
+                  {user?.role === 'teacher' && '教师只能创建"全部可见"或"仅教师可见"的提案'}
+                  {!['student', 'teacher'].includes(user?.role) && '选择该提案的可见范围'}
+                </span>
+              </div>
               <div className="form-group form-time-group">
                 <div className="time-input-wrapper">
                   <label htmlFor="startTime">开始时间 *</label>
@@ -351,7 +371,7 @@ const Proposals = () => {
                   className="btn-secondary"
                   onClick={() => {
                     setShowCreateForm(false);
-                    setFormData({ title: '', description: '', category: 'general', startTime: '', endTime: '' });
+                    setFormData({ title: '', description: '', category: 'general', visibility: 'all', startTime: '', endTime: '' });
                     setSelectedImages([]);
                     setImagePreviews([]);
                     setError('');

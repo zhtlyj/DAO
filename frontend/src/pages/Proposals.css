@@ -207,6 +207,13 @@
   padding-right: 40px;
 }
 
+.form-hint {
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 6px;
+  font-style: italic;
+}
+
 /* 时间输入组 */
 .form-time-group {
   display: grid;

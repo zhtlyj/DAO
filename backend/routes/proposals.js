@@ -24,6 +24,31 @@ router.get('/', async (req, res) => {
       query.author = req.user._id;
     }
 
+    // 根据用户角色和提案可视范围进行过滤
+    const userRole = req.user.role;
+    // 管理员和代表可以看到所有提案
+    if (userRole !== 'admin' && userRole !== 'student_representative' && userRole !== 'teacher_representative') {
+      // 普通学生和教师只能看到：
+      // 1. visibility='all' 的提案
+      // 2. visibility 匹配自己角色的提案
+      const visibilityFilter = {
+        $or: [
+          { visibility: 'all' },
+          { visibility: userRole } // student 或 teacher
+        ]
+      };
+      // 如果已有 $or 条件，需要合并
+      if (query.$or) {
+        query.$and = [
+          { $or: query.$or },
+          visibilityFilter
+        ];
+        delete query.$or;
+      } else {
+        Object.assign(query, visibilityFilter);
+      }
+    }
+
     const skip = (parseInt(page) - 1) * parseInt(limit);
     
     const proposals = await Proposal.find(query)
@@ -99,6 +124,16 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ message: '提案不存在' });
     }
 
+    // 检查可视范围权限
+    const userRole = req.user.role;
+    // 管理员和代表可以看到所有提案
+    if (userRole !== 'admin' && userRole !== 'student_representative' && userRole !== 'teacher_representative') {
+      // 普通学生和教师只能看到 visibility='all' 或匹配自己角色的提案
+      if (proposal.visibility !== 'all' && proposal.visibility !== userRole) {
+        return res.status(403).json({ message: '无权查看该提案' });
+      }
+    }
+
     res.json(proposal);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -108,7 +143,7 @@ router.get('/:id', async (req, res) => {
 // 创建提案（所有用户都可以创建，支持图片上传）
 router.post('/', uploadProposal.array('images', 5), async (req, res) => {
   try {
-    const { title, description, category, startTime, endTime } = req.body;
+    const { title, description, category, startTime, endTime, visibility } = req.body;
     const userId = req.user._id;
 
     if (!title || !description) {
@@ -118,6 +153,10 @@ router.post('/', uploadProposal.array('images', 5), async (req, res) => {
     if (!startTime || !endTime) {
       return res.status(400).json({ message: '开始时间和结束时间是必填项' });
     }
+
+    // 验证可视范围
+    const validVisibility = ['student', 'teacher', 'all'];
+    const proposalVisibility = visibility && validVisibility.includes(visibility) ? visibility : 'all';
 
     const start = new Date(startTime);
     const end = new Date(endTime);
@@ -143,6 +182,7 @@ router.post('/', uploadProposal.array('images', 5), async (req, res) => {
       title,
       description,
       category: category || 'general',
+      visibility: proposalVisibility,
       images: images,
       startTime: start,
       endTime: end,

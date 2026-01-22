@@ -1,0 +1,25 @@
+# Hardhat files
+node_modules/
+cache/
+artifacts/
+typechain-types/
+exports/
+
+# Environment variables
+.env
+.env.local
+
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
