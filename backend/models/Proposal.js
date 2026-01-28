@@ -88,8 +88,34 @@ const proposalSchema = new mongoose.Schema({
       votedAt: {
         type: Date,
         default: Date.now
+      },
+      // 链上投票相关信息
+      chainVoted: {
+        type: Boolean,
+        default: false
+      },
+      chainAddress: {
+        type: String,
+        trim: true
+      },
+      chainVoteType: {
+        type: Number, // 0=Upvote, 1=Downvote, 2=Abstain
+        default: null
+      },
+      chainTransactionHash: {
+        type: String,
+        trim: true
       }
     }]
+  },
+  // 链上提案信息
+  chainProposalId: {
+    type: Number,
+    default: null
+  },
+  chainAddress: {
+    type: String,
+    trim: true
   },
   comments: [{
     user: {

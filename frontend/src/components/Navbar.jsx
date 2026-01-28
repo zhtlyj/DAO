@@ -19,6 +19,7 @@ const Navbar = () => {
       { path: '/', label: '首页', icon: '🏠', roles: ['student', 'teacher', 'student_representative', 'teacher_representative', 'admin'] },
       proposalMenu,
       { path: '/my-votes', label: '我的投票', icon: '🗳️', roles: ['student', 'teacher', 'student_representative', 'teacher_representative', 'admin'] },
+      { path: '/transactions', label: '交易历史', icon: '📋', roles: ['student', 'teacher', 'student_representative', 'teacher_representative', 'admin'] },
       { path: '/discussion', label: '讨论区', icon: '💬', roles: ['student', 'teacher', 'student_representative', 'teacher_representative', 'admin'] },
       { path: '/governance', label: '治理规则', icon: '📜', roles: ['student', 'teacher', 'student_representative', 'teacher_representative', 'admin'] },
       { path: '/achievements', label: '成就与积分', icon: '🏅', roles: ['student', 'teacher', 'student_representative', 'teacher_representative', 'admin'] },

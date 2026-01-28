@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { WalletProvider } from './context/WalletContext';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Home from './pages/Home';
@@ -13,6 +14,7 @@ import AdminUsers from './pages/AdminUsers';
 import AdminStatistics from './pages/AdminStatistics';
 import AdminSettings from './pages/AdminSettings';
 import Achievements from './pages/Achievements';
+import TransactionHistory from './pages/TransactionHistory';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
 import './App.css';
@@ -36,7 +38,8 @@ const CreateProposal = () => (
 function App() {
   return (
     <AuthProvider>
-      <Router>
+      <WalletProvider>
+        <Router>
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
@@ -97,6 +100,14 @@ function App() {
             }
           />
           <Route
+            path="/transactions"
+            element={
+              <ProtectedRoute>
+                <TransactionHistory />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/discussion"
             element={
               <ProtectedRoute>
@@ -147,6 +158,7 @@ function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Router>
+      </WalletProvider>
     </AuthProvider>
   );
 }

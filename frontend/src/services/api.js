@@ -76,7 +76,13 @@ export const proposalAPI = {
   },
   updateProposal: (id, data) => api.put(`/proposals/${id}`, data),
   deleteProposal: (id) => api.delete(`/proposals/${id}`),
-  voteProposal: (id, voteType) => api.post(`/proposals/${id}/vote`, { voteType }),
+  voteProposal: (id, voteType, chainVoteData = null) => {
+    const data = { voteType };
+    if (chainVoteData) {
+      Object.assign(data, chainVoteData);
+    }
+    return api.post(`/proposals/${id}/vote`, data);
+  },
   getMyVote: (id) => api.get(`/proposals/${id}/my-vote`),
   addComment: (id, content) => api.post(`/proposals/${id}/comments`, { content }),
   addReply: (id, commentId, content) => api.post(`/proposals/${id}/comments/${commentId}/replies`, { content }),
@@ -96,6 +102,14 @@ export const achievementAPI = {
 export const settingsAPI = {
   getSettings: () => api.get('/settings'),
   updateSettings: (data) => api.put('/settings', data),
+};
+
+// 交易历史相关 API
+export const transactionAPI = {
+  getMyTransactions: (params) => api.get('/transactions/my-transactions', { params }),
+  getAllTransactions: (params) => api.get('/transactions', { params }),
+  getTransactionByHash: (hash) => api.get(`/transactions/hash/${hash}`),
+  getTransactionStatistics: () => api.get('/transactions/statistics'),
 };
 
 export default api;

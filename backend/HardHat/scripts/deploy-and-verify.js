@@ -1,31 +1,59 @@
 const hre = require("hardhat");
 
+/**
+ * 部署合约并验证部署状态
+ * 这个脚本会：
+ * 1. 部署合约到指定网络
+ * 2. 验证合约代码是否存在
+ * 3. 测试合约方法是否可用
+ */
 async function main() {
-  console.log("开始部署智能合约...");
+  const network = hre.network.name;
+  console.log(`\n🚀 开始部署到 ${network} 网络...\n`);
 
   // 获取部署账户
   const [deployer] = await hre.ethers.getSigners();
-  console.log("使用账户部署合约:", deployer.address);
-  console.log("账户余额:", (await hre.ethers.provider.getBalance(deployer.address)).toString());
+  console.log("📝 使用账户部署合约:", deployer.address);
+  const balance = await hre.ethers.provider.getBalance(deployer.address);
+  console.log("💰 账户余额:", hre.ethers.formatEther(balance), "ETH\n");
 
   // 部署 DAO 合约
+  console.log("📦 正在部署 DAO 合约...");
   const DAO = await hre.ethers.getContractFactory("DAO");
   const dao = await DAO.deploy();
 
   await dao.waitForDeployment();
-
   const daoAddress = await dao.getAddress();
-  console.log("DAO 合约已部署到:", daoAddress);
+  console.log("✅ DAO 合约已部署到:", daoAddress);
+
+  // 验证合约代码
+  console.log("\n🔍 验证合约部署...");
+  const code = await hre.ethers.provider.getCode(daoAddress);
+  if (!code || code === "0x") {
+    console.error("❌ 错误：合约地址没有代码！");
+    process.exit(1);
+  }
+  console.log("✅ 合约代码验证通过，代码长度:", code.length);
+
+  // 测试合约方法
+  console.log("\n🧪 测试合约方法...");
+  try {
+    const count = await dao.getProposalCount();
+    console.log("✅ getProposalCount() 测试通过，当前提案数量:", count.toString());
+  } catch (error) {
+    console.error("❌ getProposalCount() 测试失败:", error.message);
+    process.exit(1);
+  }
 
   // 等待几个区块确认（用于测试网络）
-  if (hre.network.name !== "hardhat" && hre.network.name !== "localhost") {
-    console.log("等待区块确认...");
+  if (network !== "hardhat" && network !== "localhost") {
+    console.log("\n⏳ 等待区块确认...");
     await dao.deploymentTransaction().wait(5);
   }
 
-  console.log("\n部署完成！");
-  console.log("合约地址:", daoAddress);
-  console.log("网络:", hre.network.name);
+  console.log("\n✅ 部署完成！");
+  console.log("📍 合约地址:", daoAddress);
+  console.log("🌐 网络:", network);
   
   // 保存合约地址到文件
   const fs = require("fs");
@@ -41,9 +69,9 @@ async function main() {
     addresses = JSON.parse(fs.readFileSync(addressPath, "utf8"));
   }
   
-  addresses[hre.network.name] = daoAddress;
+  addresses[network] = daoAddress;
   fs.writeFileSync(addressPath, JSON.stringify(addresses, null, 2));
-  console.log("✅ 合约地址已保存到:", addressPath);
+  console.log("💾 合约地址已保存到:", addressPath);
   
   // 读取编译后的合约文件以获取 ABI
   const artifactPath = path.join(__dirname, "../artifacts/contracts/DAO.sol/DAO.json");
@@ -55,11 +83,10 @@ async function main() {
     abi: abi,
     addresses: addresses,
     contractName: "DAO",
-    network: hre.network.name
+    network: network
   };
   
   // 更新前端合约文件
-  // 从 backend/HardHat/scripts 到 frontend/src/contracts
   const frontendDir = path.join(__dirname, "../../../frontend/src/contracts");
   const frontendRoot = path.join(__dirname, "../../../frontend");
   if (fs.existsSync(frontendRoot)) {
@@ -70,36 +97,27 @@ async function main() {
     // 更新前端合约信息文件
     const frontendContractPath = path.join(frontendDir, "DAO.json");
     fs.writeFileSync(frontendContractPath, JSON.stringify(contractInfo, null, 2));
-    console.log("✅ 前端合约地址已更新到:", frontendContractPath);
+    console.log("📤 前端合约地址已更新到:", frontendContractPath);
     
     // 同时更新 ABI 文件
     const frontendABIPath = path.join(frontendDir, "DAO.abi.json");
     fs.writeFileSync(frontendABIPath, JSON.stringify(abi, null, 2));
-    console.log("✅ 前端 ABI 已更新到:", frontendABIPath);
+    console.log("📤 前端 ABI 已更新到:", frontendABIPath);
   } else {
     console.log("⚠️  前端目录不存在，跳过前端文件更新");
   }
-  
-  // 如果配置了 Etherscan API key，可以验证合约
-  // if (hre.network.name !== "hardhat" && hre.network.name !== "localhost") {
-  //   console.log("\n等待几秒后验证合约...");
-  //   await new Promise(resolve => setTimeout(resolve, 20000));
-  //   try {
-  //     await hre.run("verify:verify", {
-  //       address: daoAddress,
-  //       constructorArguments: [],
-  //     });
-  //     console.log("合约验证成功！");
-  //   } catch (error) {
-  //     console.log("合约验证失败:", error.message);
-  //   }
-  // }
+
+  console.log("\n🎉 所有步骤完成！");
+  console.log("\n📋 下一步：");
+  console.log("1. 确保 Hardhat 节点正在运行 (npm run node)");
+  console.log("2. 确保 MetaMask 连接到 localhost:8545, chainId: 1337");
+  console.log("3. 在前端尝试提交提案\n");
 }
 
 main()
   .then(() => process.exit(0))
   .catch((error) => {
-    console.error(error);
+    console.error("\n❌ 部署失败:", error);
     process.exit(1);
   });
 

@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
 import { useAuth } from '../context/AuthContext';
+import { useWallet } from '../context/WalletContext';
 import { proposalAPI } from '../services/api';
+import { voteOnChain, changeVoteOnChain, VoteType, getUserVoteFromChain } from '../utils/contract';
 import './Home.css';
 
 const Home = () => {
   const { user } = useAuth();
+  const { contract, isConnected, account } = useWallet();
   const [allProposals, setAllProposals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -168,6 +171,83 @@ const Home = () => {
     
     try {
       setVoting(true);
+      setError('');
+      
+      // 如果已连接钱包且有链上提案ID，先在链上投票
+      if (isConnected && contract && selectedProposal.chainProposalId && account) {
+        try {
+          const voteTypeMap = {
+            'upvote': VoteType.Upvote,
+            'downvote': VoteType.Downvote,
+            'abstain': VoteType.Abstain
+          };
+          
+          const chainVoteType = voteTypeMap[voteType];
+          if (chainVoteType === undefined) {
+            throw new Error('无效的投票类型');
+          }
+          
+          // 从合约查询用户是否已对该提案投票
+          let hasVotedOnChain = false;
+          try {
+            const userVoteInfo = await getUserVoteFromChain(
+              contract, 
+              selectedProposal.chainProposalId, 
+              account
+            );
+            hasVotedOnChain = userVoteInfo.voted;
+            console.log(`用户对提案 ${selectedProposal.chainProposalId} 的投票状态:`, hasVotedOnChain);
+          } catch (queryError) {
+            console.warn('查询链上投票状态失败，将尝试直接投票:', queryError);
+            // 如果查询失败，假设未投票，尝试直接投票
+          }
+          
+          // 根据是否已投票，选择调用 vote 或 changeVote
+          let chainTransactionHash = null;
+          if (hasVotedOnChain) {
+            // 如果已投票，使用 changeVote 修改投票
+            console.log(`用户已投票，修改投票为: ${voteType}`);
+            const receipt = await changeVoteOnChain(contract, selectedProposal.chainProposalId, chainVoteType);
+            chainTransactionHash = receipt.hash;
+          } else {
+            // 如果未投票，使用 vote 首次投票
+            console.log(`用户首次投票: ${voteType}`);
+            const receipt = await voteOnChain(contract, selectedProposal.chainProposalId, chainVoteType);
+            chainTransactionHash = receipt.hash;
+          }
+          
+          // 将链上投票信息传递给后端
+          const chainVoteData = {
+            chainVoted: true,
+            chainAddress: account,
+            chainVoteType: chainVoteType,
+            chainTransactionHash: chainTransactionHash,
+            network: network || 'hardhat'
+          };
+          
+          // 调用后端API保存投票（包含链上信息）
+          const response = await proposalAPI.voteProposal(
+            selectedProposal._id, 
+            voteType,
+            chainVoteData
+          );
+          
+          setSelectedProposal(response.data.proposal);
+          setUserVote(voteType);
+          
+          // 更新列表中的提案数据
+          setAllProposals(prev => prev.map(p => 
+            p._id === selectedProposal._id ? response.data.proposal : p
+          ));
+          return; // 链上投票成功，直接返回
+        } catch (chainError) {
+          console.error('链上投票失败:', chainError);
+          setError(`链上投票失败: ${chainError.message}。将仅保存到数据库。`);
+          // 继续执行，保存到数据库
+        }
+      }
+      
+      // 如果没有链上投票或链上投票失败，仅保存到数据库
       const response = await proposalAPI.voteProposal(selectedProposal._id, voteType);
       setSelectedProposal(response.data.proposal);
       setUserVote(voteType);

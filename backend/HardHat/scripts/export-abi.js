@@ -44,8 +44,11 @@ async function exportABI() {
     console.log("✅ 合约信息已导出到:", infoPath);
 
     // 导出到前端目录（如果存在）
+    // 从 backend/HardHat/scripts 到 frontend/src/contracts
     const frontendDir = path.join(__dirname, "../../../frontend/src/contracts");
-    if (fs.existsSync(path.join(__dirname, "../../../frontend"))) {
+    const frontendRoot = path.join(__dirname, "../../../frontend");
+    
+    if (fs.existsSync(frontendRoot)) {
       if (!fs.existsSync(frontendDir)) {
         fs.mkdirSync(frontendDir, { recursive: true });
       }
@@ -56,13 +59,17 @@ async function exportABI() {
         JSON.stringify(abi, null, 2)
       );
 
-      // 复制合约信息到前端
+      // 复制合约信息到前端（包含最新的地址）
       fs.writeFileSync(
         path.join(frontendDir, "DAO.json"),
         JSON.stringify(contractInfo, null, 2)
       );
 
-      console.log("✅ 已复制到前端目录:", frontendDir);
+      console.log("✅ 已更新前端目录:", frontendDir);
+      console.log("   合约地址:", JSON.stringify(addresses, null, 2));
+    } else {
+      console.log("⚠️  前端目录不存在，跳过前端文件更新");
+      console.log("   查找路径:", frontendRoot);
     }
 
     console.log("\n导出完成！");

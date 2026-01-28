@@ -1,5 +1,6 @@
 import express from 'express';
 import Proposal from '../models/Proposal.js';
+import Transaction from '../models/Transaction.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import uploadProposal from '../middleware/uploadProposal.js';
 
@@ -178,7 +179,7 @@ router.post('/', uploadProposal.array('images', 5), async (req, res) => {
       });
     }
 
-    const proposal = new Proposal({
+    const proposalData = {
       title,
       description,
       category: category || 'general',
@@ -188,10 +189,46 @@ router.post('/', uploadProposal.array('images', 5), async (req, res) => {
       endTime: end,
       author: userId,
       status: 'pending'
-    });
+    };
+    
+    // 如果提供了链上提案ID和地址，保存到数据库
+    if (req.body.chainProposalId) {
+      proposalData.chainProposalId = parseInt(req.body.chainProposalId);
+    }
+    if (req.body.chainAddress) {
+      proposalData.chainAddress = req.body.chainAddress;
+    }
+    
+    const proposal = new Proposal(proposalData);
 
     await proposal.save();
     await proposal.populate('author', 'name email avatar role');
+
+    // 如果提供了链上交易哈希，保存交易记录
+    if (req.body.chainTransactionHash && req.body.chainAddress) {
+      try {
+        const transaction = new Transaction({
+          user: userId,
+          type: 'create_proposal',
+          transactionHash: req.body.chainTransactionHash,
+          chainAddress: req.body.chainAddress,
+          network: req.body.network || 'hardhat',
+          proposal: proposal._id,
+          chainProposalId: proposalData.chainProposalId || null,
+          details: {
+            proposalTitle: title,
+            proposalDescription: description,
+            startTime: start,
+            endTime: end
+          },
+          status: 'confirmed'
+        });
+        await transaction.save();
+      } catch (txError) {
+        // 如果保存交易记录失败，不影响提案创建
+        console.error('保存交易记录失败:', txError);
+      }
+    }
 
     res.status(201).json(proposal);
   } catch (error) {
@@ -273,7 +310,13 @@ router.delete('/:id', async (req, res) => {
 // 投票接口（支持、反对、弃权）
 router.post('/:id/vote', async (req, res) => {
   try {
-    const { voteType } = req.body; // 'upvote', 'downvote', 'abstain'
+    const { 
+      voteType, // 'upvote', 'downvote', 'abstain'
+      chainVoted, // 是否在链上投票
+      chainAddress, // 链上钱包地址
+      chainVoteType, // 链上投票类型 (0=Upvote, 1=Downvote, 2=Abstain)
+      chainTransactionHash // 链上交易哈希
+    } = req.body;
     const userId = req.user._id;
     const proposalId = req.params.id;
 
@@ -324,6 +367,20 @@ router.post('/:id/vote', async (req, res) => {
       // 更新投票类型
       existingVote.voteType = voteType;
       existingVote.votedAt = new Date();
+      
+      // 更新链上投票信息（如果提供）
+      if (chainVoted !== undefined) {
+        existingVote.chainVoted = chainVoted;
+      }
+      if (chainAddress) {
+        existingVote.chainAddress = chainAddress;
+      }
+      if (chainVoteType !== undefined && chainVoteType !== null) {
+        existingVote.chainVoteType = chainVoteType;
+      }
+      if (chainTransactionHash) {
+        existingVote.chainTransactionHash = chainTransactionHash;
+      }
 
       // 增加新投票类型的计数
       if (voteType === 'upvote') {
@@ -335,11 +392,27 @@ router.post('/:id/vote', async (req, res) => {
       }
     } else {
       // 如果用户还没有投票，添加新的投票记录
-      proposal.votes.voterRecords.push({
+      const newVoteRecord = {
         user: userId,
         voteType: voteType,
         votedAt: new Date()
-      });
+      };
+      
+      // 添加链上投票信息（如果提供）
+      if (chainVoted !== undefined) {
+        newVoteRecord.chainVoted = chainVoted;
+      }
+      if (chainAddress) {
+        newVoteRecord.chainAddress = chainAddress;
+      }
+      if (chainVoteType !== undefined && chainVoteType !== null) {
+        newVoteRecord.chainVoteType = chainVoteType;
+      }
+      if (chainTransactionHash) {
+        newVoteRecord.chainTransactionHash = chainTransactionHash;
+      }
+      
+      proposal.votes.voterRecords.push(newVoteRecord);
 
       // 增加对应投票类型的计数
       if (voteType === 'upvote') {
@@ -352,6 +425,37 @@ router.post('/:id/vote', async (req, res) => {
     }
 
     await proposal.save();
+    
+    // 如果提供了链上交易哈希，保存交易记录
+    if (chainTransactionHash && chainAddress) {
+      try {
+        // 检查是否已存在该交易记录（防止重复）
+        const existingTx = await Transaction.findOne({ transactionHash: chainTransactionHash });
+        if (!existingTx) {
+          // 判断是否是修改投票（如果用户之前已经投票过，就是修改投票）
+          const isChangeVote = !!existingVote;
+          const transaction = new Transaction({
+            user: userId,
+            type: isChangeVote ? 'change_vote' : 'vote',
+            transactionHash: chainTransactionHash,
+            chainAddress: chainAddress,
+            network: req.body.network || 'hardhat',
+            proposal: proposalId,
+            chainProposalId: proposal.chainProposalId || null,
+            details: {
+              voteType: voteType,
+              chainVoteType: chainVoteType,
+              isChangeVote: isChangeVote
+            },
+            status: 'confirmed'
+          });
+          await transaction.save();
+        }
+      } catch (txError) {
+        // 如果保存交易记录失败，不影响投票
+        console.error('保存交易记录失败:', txError);
+      }
+    }
     
     // 重新获取提案并填充用户信息
     updatedProposal = await Proposal.findById(proposalId)
