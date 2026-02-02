@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { ethers } from 'ethers';
 import Layout from '../components/Layout';
 import { useAuth } from '../context/AuthContext';
 import { useWallet } from '../context/WalletContext';
@@ -7,30 +8,26 @@ import './TransactionHistory.css';
 
 const TransactionHistory = () => {
   const { user } = useAuth();
-  const { account } = useWallet();
+  const { account, contract, provider } = useWallet();
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState('');
-  const [filter, setFilter] = useState('all'); // all, create_proposal, vote, change_vote
-  const [statusFilter, setStatusFilter] = useState('all'); // all, confirmed, pending, failed
 
   useEffect(() => {
     fetchTransactions();
-  }, [filter, statusFilter]);
+  }, []);
 
   const fetchTransactions = async () => {
     try {
       setLoading(true);
-      const params = { page: 1, limit: 50 };
-      if (filter !== 'all') {
-        params.type = filter;
-      }
-      if (statusFilter !== 'all') {
-        params.status = statusFilter;
-      }
+      setError('');
+      // 使用新的投票记录API端点
+      const params = { page: 1, limit: 100 };
       
-      const response = await transactionAPI.getMyTransactions(params);
-      setTransactions(response.data.transactions || []);
+      const response = await transactionAPI.getAllVotes(params);
+      const voteTransactions = response.data.data?.transactions || response.data.transactions || [];
+      setTransactions(voteTransactions);
     } catch (error) {
       console.error('获取交易历史失败:', error);
       setError('获取交易历史失败，请稍后重试');
@@ -39,44 +36,30 @@ const TransactionHistory = () => {
     }
   };
 
-  // 格式化交易类型
-  const getTransactionTypeLabel = (type) => {
-    const typeMap = {
-      'create_proposal': '创建提案',
-      'vote': '投票',
-      'change_vote': '修改投票'
-    };
-    return typeMap[type] || type;
-  };
+  // 同步链上投票
+  const syncChainVotes = async () => {
+    if (!contract || !provider) {
+      setError('请先连接钱包');
+      return;
+    }
 
-  // 获取交易类型图标
-  const getTransactionTypeIcon = (type) => {
-    const iconMap = {
-      'create_proposal': '📝',
-      'vote': '🗳️',
-      'change_vote': '🔄'
-    };
-    return iconMap[type] || '📋';
-  };
-
-  // 格式化交易状态
-  const getStatusLabel = (status) => {
-    const statusMap = {
-      'confirmed': '已确认',
-      'pending': '待确认',
-      'failed': '失败'
-    };
-    return statusMap[status] || status;
-  };
-
-  // 获取状态样式
-  const getStatusStyle = (status) => {
-    const styles = {
-      'confirmed': { bg: '#d1fae5', color: '#059669' },
-      'pending': { bg: '#fef3c7', color: '#d97706' },
-      'failed': { bg: '#fee2e2', color: '#dc2626' }
-    };
-    return styles[status] || styles.pending;
+    try {
+      setSyncing(true);
+      setError('');
+      
+      // 获取链上所有提案的投票记录
+      // 这里需要遍历所有提案，获取每个提案的投票记录
+      // 由于这是一个复杂操作，暂时显示提示信息
+      alert('同步链上投票功能开发中，请稍后...');
+      
+      // TODO: 实现从链上同步投票记录到数据库的逻辑
+      
+    } catch (error) {
+      console.error('同步链上投票失败:', error);
+      setError('同步链上投票失败: ' + error.message);
+    } finally {
+      setSyncing(false);
+    }
   };
 
   // 格式化日期
@@ -89,7 +72,7 @@ const TransactionHistory = () => {
       hour: '2-digit',
       minute: '2-digit',
       second: '2-digit'
-    });
+    }).replace(/\//g, '/');
   };
 
   // 格式化交易哈希（显示前6位和后4位）
@@ -99,101 +82,131 @@ const TransactionHistory = () => {
     return `${hash.slice(0, 6)}...${hash.slice(-4)}`;
   };
 
-  // 复制交易哈希
-  const copyHash = (hash) => {
-    navigator.clipboard.writeText(hash);
-    alert('交易哈希已复制到剪贴板');
+  // 格式化地址（显示前6位和后4位）
+  const formatAddress = (address) => {
+    if (!address) return '-';
+    if (address.length <= 10) return address;
+    return `${address.slice(0, 6)}...${address.slice(-4)}`;
   };
 
-  // 获取投票类型标签
-  const getVoteTypeLabel = (voteType) => {
+  // 获取交易类型标签和样式
+  const getTransactionTypeInfo = (tx) => {
+    // 如果是创建提案
+    if (tx.type === 'create_proposal') {
+      return { label: '创建提案', icon: '📝', color: '#3b82f6' };
+    }
+    
+    // 如果是投票
+    const voteType = tx.details?.voteType || 'upvote';
     const voteMap = {
-      'upvote': '支持',
-      'downvote': '反对',
-      'abstain': '弃权'
+      'upvote': { label: '支持', icon: '👍', color: '#10b981' },
+      'downvote': { label: '反对', icon: '👎', color: '#ef4444' },
+      'abstain': { label: '弃权', icon: '➖', color: '#6b7280' }
     };
-    return voteMap[voteType] || voteType;
+    return voteMap[voteType] || { label: voteType, icon: '❓', color: '#6b7280' };
+  };
+
+  // 计算Gas使用量（从字符串转换为数字）
+  const getGasUsed = (tx) => {
+    if (!tx.gasUsed) return 0;
+    return typeof tx.gasUsed === 'string' ? parseInt(tx.gasUsed) : tx.gasUsed;
+  };
+
+  // 计算ETH消耗（优先使用transactionFee，否则计算gasUsed * gasPrice）
+  const getEthConsumption = (tx) => {
+    if (tx.transactionFee) {
+      // transactionFee 可能是 wei 格式的字符串
+      const fee = typeof tx.transactionFee === 'string' 
+        ? parseFloat(tx.transactionFee) 
+        : tx.transactionFee;
+      return ethers.formatEther(fee.toString());
+    }
+    
+    // 如果没有transactionFee，尝试计算
+    if (tx.gasUsed && tx.gasPrice) {
+      const gasUsed = typeof tx.gasUsed === 'string' ? BigInt(tx.gasUsed) : BigInt(tx.gasUsed);
+      const gasPrice = typeof tx.gasPrice === 'string' ? BigInt(tx.gasPrice) : BigInt(tx.gasPrice);
+      const total = gasUsed * gasPrice;
+      return ethers.formatEther(total.toString());
+    }
+    
+    return '0';
   };
 
   // 统计信息
-  const stats = {
-    total: transactions.length,
-    create_proposal: transactions.filter(t => t.type === 'create_proposal').length,
-    vote: transactions.filter(t => t.type === 'vote').length,
-    change_vote: transactions.filter(t => t.type === 'change_vote').length
-  };
+  const totalTransactions = transactions.length;
+  const totalGas = transactions.reduce((sum, tx) => sum + getGasUsed(tx), 0);
+  const totalEth = transactions.reduce((sum, tx) => {
+    const eth = parseFloat(getEthConsumption(tx));
+    return sum + (isNaN(eth) ? 0 : eth);
+  }, 0);
+  const avgEth = totalTransactions > 0 ? totalEth / totalTransactions : 0;
 
   return (
     <Layout>
       <div className="transaction-history-page">
         <div className="transaction-header">
           <div>
-            <h1>交易历史</h1>
-            <p className="page-subtitle">查看您的所有链上交易记录</p>
+            <h1>交易记录与Gas消耗</h1>
+            <p className="page-subtitle">查看所有投票和提案创建记录及其消耗的Gas和ETH</p>
           </div>
-          {account && (
-            <div className="wallet-info">
-              <span className="wallet-label">钱包地址：</span>
-              <span className="wallet-address">{formatHash(account)}</span>
-            </div>
-          )}
+          <div className="header-actions">
+            <button 
+              className="action-btn sync-btn" 
+              onClick={syncChainVotes}
+              disabled={syncing}
+            >
+              <span className="btn-icon">🔄</span>
+              {syncing ? '同步中...' : '同步链上投票'}
+            </button>
+            <button 
+              className="action-btn refresh-btn" 
+              onClick={fetchTransactions}
+              disabled={loading}
+            >
+              <span className="btn-icon">🔄</span>
+              刷新
+            </button>
+          </div>
         </div>
 
         {/* 统计卡片 */}
         <div className="transaction-stats">
-          <div className="stat-card">
-            <div className="stat-icon">📊</div>
+          <div className="stat-card stat-total">
+            <div className="stat-icon stat-icon-total">✓</div>
             <div className="stat-content">
-              <div className="stat-value">{stats.total}</div>
+              <div className="stat-value">{totalTransactions}</div>
+              <div className="stat-unit">次</div>
               <div className="stat-label">总交易数</div>
             </div>
           </div>
-          <div className="stat-card">
-            <div className="stat-icon">📝</div>
+          <div className="stat-card stat-gas">
+            <div className="stat-icon stat-icon-gas">⛽</div>
             <div className="stat-content">
-              <div className="stat-value">{stats.create_proposal}</div>
-              <div className="stat-label">创建提案</div>
+              <div className="stat-value">{totalGas.toLocaleString()}</div>
+              <div className="stat-unit">Gas</div>
+              <div className="stat-label">总Gas消耗</div>
             </div>
           </div>
-          <div className="stat-card">
-            <div className="stat-icon">🗳️</div>
+          <div className="stat-card stat-eth">
+            <div className="stat-icon stat-icon-eth">💎</div>
             <div className="stat-content">
-              <div className="stat-value">{stats.vote}</div>
-              <div className="stat-label">投票</div>
+              <div className="stat-value">{totalEth.toFixed(6)}</div>
+              <div className="stat-unit">ETH</div>
+              <div className="stat-label">总ETH消耗</div>
             </div>
           </div>
-          <div className="stat-card">
-            <div className="stat-icon">🔄</div>
+          <div className="stat-card stat-avg">
+            <div className="stat-icon stat-icon-avg">📊</div>
             <div className="stat-content">
-              <div className="stat-value">{stats.change_vote}</div>
-              <div className="stat-label">修改投票</div>
+              <div className="stat-value">{avgEth.toFixed(6)}</div>
+              <div className="stat-unit">ETH</div>
+              <div className="stat-label">平均ETH消耗</div>
             </div>
           </div>
         </div>
 
-        {/* 筛选器 */}
-        <div className="transaction-filters">
-          <div className="filter-group">
-            <label>交易类型：</label>
-            <select value={filter} onChange={(e) => setFilter(e.target.value)}>
-              <option value="all">全部</option>
-              <option value="create_proposal">创建提案</option>
-              <option value="vote">投票</option>
-              <option value="change_vote">修改投票</option>
-            </select>
-          </div>
-          <div className="filter-group">
-            <label>交易状态：</label>
-            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-              <option value="all">全部</option>
-              <option value="confirmed">已确认</option>
-              <option value="pending">待确认</option>
-              <option value="failed">失败</option>
-            </select>
-          </div>
-        </div>
-
-        {/* 交易列表 */}
+        {/* 交易表格 */}
         {loading ? (
           <div className="loading">加载中...</div>
         ) : error ? (
@@ -202,78 +215,68 @@ const TransactionHistory = () => {
           <div className="empty-state">
             <div className="empty-icon">📋</div>
             <p>暂无交易记录</p>
-            <p className="empty-hint">当您创建提案或投票时，交易记录会显示在这里</p>
+            <p className="empty-hint">当您进行投票或创建提案时，交易记录会显示在这里</p>
           </div>
         ) : (
-          <div className="transaction-list">
-            {transactions.map((tx) => {
-              const statusStyle = getStatusStyle(tx.status);
-              return (
-                <div key={tx._id} className="transaction-card">
-                  <div className="transaction-card-header">
-                    <div className="transaction-type">
-                      <span className="type-icon">{getTransactionTypeIcon(tx.type)}</span>
-                      <span className="type-label">{getTransactionTypeLabel(tx.type)}</span>
-                    </div>
-                    <span 
-                      className="transaction-status"
-                      style={{ 
-                        backgroundColor: statusStyle.bg, 
-                        color: statusStyle.color 
-                      }}
-                    >
-                      {getStatusLabel(tx.status)}
-                    </span>
-                  </div>
-
-                  <div className="transaction-details">
-                    <div className="detail-row">
-                      <span className="detail-label">交易哈希：</span>
-                      <span className="detail-value hash-value" onClick={() => copyHash(tx.transactionHash)} title="点击复制">
-                        {formatHash(tx.transactionHash)}
-                      </span>
-                    </div>
-                    
-                    <div className="detail-row">
-                      <span className="detail-label">时间：</span>
-                      <span className="detail-value">{formatDate(tx.createdAt)}</span>
-                    </div>
-
-                    {tx.proposal && (
-                      <div className="detail-row">
-                        <span className="detail-label">关联提案：</span>
-                        <span className="detail-value">{tx.proposal.title || '未知提案'}</span>
-                        {tx.chainProposalId && (
-                          <span className="chain-id">(链上ID: {tx.chainProposalId})</span>
-                        )}
-                      </div>
-                    )}
-
-                    {tx.details && (
-                      <>
-                        {tx.details.proposalTitle && (
-                          <div className="detail-row">
-                            <span className="detail-label">提案标题：</span>
-                            <span className="detail-value">{tx.details.proposalTitle}</span>
-                          </div>
-                        )}
-                        {tx.details.voteType && (
-                          <div className="detail-row">
-                            <span className="detail-label">投票类型：</span>
-                            <span className="detail-value">{getVoteTypeLabel(tx.details.voteType)}</span>
-                          </div>
-                        )}
-                      </>
-                    )}
-
-                    <div className="detail-row">
-                      <span className="detail-label">网络：</span>
-                      <span className="detail-value">{tx.network || 'hardhat'}</span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+          <div className="transaction-table-container">
+            <table className="transaction-table">
+              <thead>
+                <tr>
+                  <th>提案</th>
+                  <th>操作</th>
+                  <th>GAS使用</th>
+                  <th>ETH消耗</th>
+                  <th>交易哈希</th>
+                  <th>时间</th>
+                </tr>
+              </thead>
+              <tbody>
+                {transactions.map((tx, index) => {
+                  const typeInfo = getTransactionTypeInfo(tx);
+                  const gasUsed = getGasUsed(tx);
+                  const ethConsumption = getEthConsumption(tx);
+                  // 对于创建提案，显示创建的提案ID；对于投票，显示投票的提案ID
+                  const proposalId = tx.type === 'create_proposal' 
+                    ? (tx.chainProposalId || tx.proposal?.chainProposalId || '-')
+                    : (tx.proposal?.chainProposalId || tx.chainProposalId || '-');
+                  
+                  return (
+                    <tr key={tx._id}>
+                      <td>
+                        <div className="proposal-cell">
+                          <span className="proposal-id">{proposalId}</span>
+                          <span className="proposal-seq">ID: {transactions.length - index}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <span 
+                          className="vote-choice" 
+                          style={{ backgroundColor: typeInfo.color }}
+                        >
+                          <span className="vote-icon">{typeInfo.icon}</span>
+                          {typeInfo.label}
+                        </span>
+                      </td>
+                      <td className="gas-cell">{gasUsed.toLocaleString()}</td>
+                      <td className="eth-cell">{parseFloat(ethConsumption).toFixed(6)} ETH</td>
+                      <td>
+                        <span 
+                          className="tx-hash" 
+                          onClick={() => {
+                            navigator.clipboard.writeText(tx.transactionHash);
+                            alert('交易哈希已复制到剪贴板');
+                          }}
+                          title="点击复制"
+                        >
+                          {formatHash(tx.transactionHash)}
+                        </span>
+                      </td>
+                      <td className="time-cell">{formatDate(tx.createdAt)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
@@ -282,4 +285,3 @@ const TransactionHistory = () => {
 };
 
 export default TransactionHistory;
-

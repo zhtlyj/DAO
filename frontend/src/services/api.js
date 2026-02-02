@@ -108,6 +108,7 @@ export const settingsAPI = {
 export const transactionAPI = {
   getMyTransactions: (params) => api.get('/transactions/my-transactions', { params }),
   getAllTransactions: (params) => api.get('/transactions', { params }),
+  getAllVotes: (params) => api.get('/transactions/votes', { params }),
   getTransactionByHash: (hash) => api.get(`/transactions/hash/${hash}`),
   getTransactionStatistics: () => api.get('/transactions/statistics'),
 };

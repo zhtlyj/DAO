@@ -118,6 +118,42 @@ router.get('/hash/:hash', async (req, res) => {
   }
 });
 
+// 获取所有投票记录和提案创建记录（公开，不需要管理员权限）
+router.get('/votes', async (req, res) => {
+  try {
+    const { page = 1, limit = 100 } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    // 获取投票、修改投票和创建提案的交易
+    const query = {
+      type: { $in: ['vote', 'change_vote', 'create_proposal'] }
+    };
+
+    const transactions = await Transaction.find(query)
+      .populate('user', 'name email avatar')
+      .populate('proposal', 'title chainProposalId')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    const total = await Transaction.countDocuments(query);
+
+    res.json({
+      data: {
+        transactions,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total,
+          pages: Math.ceil(total / parseInt(limit))
+        }
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // 获取交易统计信息
 router.get('/statistics', async (req, res) => {
   try {

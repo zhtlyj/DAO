@@ -1,15 +1,15 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ethers } from 'ethers';
 import Layout from '../components/Layout';
 import { useAuth } from '../context/AuthContext';
 import { useWallet } from '../context/WalletContext';
 import { proposalAPI } from '../services/api';
-import { createProposalOnChain, VoteType } from '../utils/contract';
 import './Proposals.css';
 
 const Proposals = () => {
   const { user } = useAuth();
-  const { contract, isConnected, account, network } = useWallet();
+  const { contract, isConnected, account, network, provider } = useWallet();
   const navigate = useNavigate();
   const [proposals, setProposals] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -128,287 +128,140 @@ const Proposals = () => {
       
       let chainProposalId = null;
       let chainTransactionHash = null;
+      let gasUsed = null;
+      let gasPrice = null;
+      let transactionFee = null;
+      let blockNumber = null;
       
       // 如果已连接钱包，先在链上创建提案
       if (isConnected && contract) {
         try {
-          // 显示提示信息
           setError('正在创建链上提案，请确认 MetaMask 交易...');
           
-          // 验证合约地址和代码
-          let contractValid = false;
-          try {
-            const contractAddress = await contract.getAddress();
-            const code = await contract.runner.provider.getCode(contractAddress);
-            console.log('合约地址:', contractAddress);
-            console.log('合约代码长度:', code?.length || 0);
-            if (!code || code === '0x' || code.length <= 2) {
-              // 合约不存在，给出友好提示但不阻止提交
-              console.warn('⚠️ 警告：合约地址没有代码，合约可能未部署到当前网络');
-              console.warn('请确保：');
-              console.warn('1. Hardhat 节点正在运行 (npm run node)');
-              console.warn('2. 合约已部署到 localhost 网络 (npm run deploy:local)');
-              console.warn('3. MetaMask 连接到正确的网络 (localhost:8545, chainId: 1337)');
-              setError('警告：合约未部署到当前网络。提案将仅保存到数据库。请先部署合约到 localhost 网络。');
-              contractValid = false;
-            } else {
-              console.log('✅ 合约验证通过，代码长度:', code.length);
-              contractValid = true;
-            }
-          } catch (verifyError) {
-            console.error('合约验证失败:', verifyError);
-            setError('警告：无法验证合约。提案将仅保存到数据库。请检查合约部署和网络配置。');
-            contractValid = false;
+          // 转换时间戳
+          const startTimestamp = Math.floor(startTime.getTime() / 1000);
+          const endTimestamp = Math.floor(endTime.getTime() / 1000);
+          
+          // 调用合约创建提案
+          console.log('调用合约创建提案...', { title: formData.title, startTimestamp, endTimestamp });
+          const tx = await contract.createProposal(
+            formData.title,
+            formData.description,
+            startTimestamp,
+            endTimestamp
+          );
+          
+          console.log('交易已发送，等待确认...', { hash: tx.hash });
+          
+          // 等待交易确认
+          const receipt = await tx.wait();
+          console.log('交易已确认', { 
+            hash: receipt.hash, 
+            status: receipt.status,
+            blockNumber: receipt.blockNumber,
+            logsCount: receipt.logs?.length || 0
+          });
+          
+          // 检查交易状态
+          if (receipt.status !== 1) {
+            throw new Error('交易失败，状态码: ' + receipt.status);
           }
           
-          // 如果合约无效，跳过链上操作，直接提交到数据库
-          if (!contractValid) {
-            console.log('合约验证失败，跳过链上操作，直接提交到数据库');
-            // 不执行链上操作，直接跳到数据库提交
-          } else {
-            // 合约有效，继续执行链上操作
+          // 保存交易哈希和gas信息
+          chainTransactionHash = receipt.hash;
+          gasUsed = receipt.gasUsed?.toString() || null;
+          
+          // 在ethers v6中，gasPrice需要从交易响应中获取
+          // 优先从原始交易获取，然后从receipt，最后从provider获取
+          if (tx.gasPrice) {
+            gasPrice = tx.gasPrice.toString();
+          } else if (receipt.gasPrice) {
+            gasPrice = receipt.gasPrice.toString();
+          } else if (provider) {
             try {
-              const startTimestamp = Math.floor(startTime.getTime() / 1000);
-              const endTimestamp = Math.floor(endTime.getTime() / 1000);
-              
-              // 在创建提案前获取当前提案数量（可选，失败不影响后续流程）
-              // 注意：如果合约地址不正确或网络不匹配，这个方法会失败
-              let currentCount = 0;
-              try {
-                // 添加超时处理，避免长时间等待
-                const countPromise = contract.getProposalCount();
-                const timeoutPromise = new Promise((_, reject) => 
-                  setTimeout(() => reject(new Error('获取提案数量超时')), 10000)
-                );
-                const count = await Promise.race([countPromise, timeoutPromise]);
-                // 检查返回值是否有效（排除 '0x'、null、undefined 等无效值）
-                const countStr = count?.toString() || '';
-                if (countStr && countStr !== '0x' && countStr !== '0x0' && !isNaN(Number(count))) {
-                  currentCount = Number(count);
-                  console.log('获取到当前提案数量:', currentCount);
-                } else {
-                  console.warn('获取到的提案数量无效:', countStr, '这可能是合约地址或网络配置问题');
-                }
-              } catch (countError) {
-                console.warn('无法获取当前提案数量，将从事件中获取:', countError);
-                // 如果获取失败，继续尝试从事件中获取，不影响后续流程
-                // 这通常意味着合约地址不正确或网络不匹配
-              }
-              
-              // 调用合约方法创建提案，添加超时处理
-              console.log('开始创建链上提案...', { title: formData.title, startTimestamp, endTimestamp });
-              const createPromise = contract.createProposal(
-                formData.title,
-                formData.description,
-                startTimestamp,
-                endTimestamp
-              );
-              const timeoutPromise = new Promise((_, reject) => 
-                setTimeout(() => reject(new Error('创建提案交易超时')), 120000) // 2分钟超时
-              );
-              
-              const tx = await Promise.race([createPromise, timeoutPromise]);
-              console.log('交易已发送，等待确认...', { hash: tx.hash });
-              
-              // 等待交易确认，添加超时处理
-              const waitPromise = tx.wait();
-              const waitTimeoutPromise = new Promise((_, reject) => 
-                setTimeout(() => reject(new Error('等待交易确认超时')), 120000) // 2分钟超时
-              );
-              
-              const receipt = await Promise.race([waitPromise, waitTimeoutPromise]);
-              console.log('交易已确认', { 
-                hash: receipt.hash, 
-                status: receipt.status, 
-                blockNumber: receipt.blockNumber,
-                logsCount: receipt.logs?.length || 0 
-              });
-              
-              // 检查交易状态
-              if (receipt.status !== 1) {
-                throw new Error('交易失败，状态码: ' + receipt.status);
-              }
-              
-              // 检查事件日志
-              const contractAddress = await contract.getAddress();
-              let hasEventLogs = receipt.logs && receipt.logs.length > 0;
-              
-              if (!hasEventLogs) {
-                console.error('❌ 严重警告：交易成功但没有事件日志！');
-                console.error('合约地址:', contractAddress);
-                console.error('交易哈希:', receipt.hash);
-                console.error('交易状态:', receipt.status);
-                console.error('这可能意味着：');
-                console.error('1. 合约地址不正确');
-                console.error('2. 合约未正确部署');
-                console.error('3. 网络配置不匹配');
-                console.error('4. 调用的合约方法不存在或签名不匹配');
-                
-                // 验证合约代码
-                try {
-                  const code = await contract.runner.provider.getCode(contractAddress);
-                  if (!code || code === '0x') {
-                    console.error(`❌ 合约地址 ${contractAddress} 没有代码，合约未部署或地址错误`);
-                    setError(`警告：合约地址 ${contractAddress} 没有代码。交易已发送但可能未正确执行。提案将仅保存到数据库。`);
-                  } else {
-                    console.warn('⚠️ 合约代码存在，但交易没有产生事件日志。可能是调用了错误的合约方法或合约版本不匹配。');
-                    setError(`警告：交易成功但没有事件日志。合约地址: ${contractAddress}。提案将仅保存到数据库。`);
-                  }
-                } catch (codeError) {
-                  console.error('合约验证失败:', codeError);
-                  setError(`警告：无法验证合约。${codeError.message}。提案将仅保存到数据库。`);
-                }
-                // 不抛出错误，允许继续提交到数据库
-              }
-              
-              // 方法1: 从事件中获取提案ID（最可靠的方法）
-              if (hasEventLogs) {
-                const iface = contract.interface;
-                console.log('开始解析事件日志，日志数量:', receipt.logs.length);
-                
-                // 方法1a: 使用 parseLog 解析
-                for (const log of receipt.logs) {
-                  try {
-                    const parsedLog = iface.parseLog(log);
-                    if (parsedLog && parsedLog.name === 'ProposalCreated') {
-                      chainProposalId = Number(parsedLog.args[0]);
-                      console.log('从事件中获取到提案ID (parseLog):', chainProposalId);
-                      break;
-                    }
-                  } catch (e) {
-                    // 继续尝试下一个日志
-                  }
-                }
-                
-                // 方法1b: 如果 parseLog 失败，尝试使用事件过滤器
-                if (chainProposalId === null) {
-                  try {
-                    const eventFilter = iface.getEvent('ProposalCreated');
-                    const decodedLogs = receipt.logs
-                      .map(log => {
-                        try {
-                          return iface.parseLog(log);
-                        } catch (e) {
-                          return null;
-                        }
-                      })
-                      .filter(log => log && log.name === 'ProposalCreated');
-                    
-                    if (decodedLogs.length > 0) {
-                      chainProposalId = Number(decodedLogs[0].args[0]);
-                      console.log('从事件中获取到提案ID (事件过滤器):', chainProposalId);
-                    }
-                  } catch (e) {
-                    console.warn('使用事件过滤器解析失败:', e);
-                  }
-                }
-                
-                // 方法1c: 如果前两种方法都失败，尝试直接解码事件数据
-                if (chainProposalId === null) {
-                  try {
-                    const eventTopic = iface.getEvent('ProposalCreated').topicHash;
-                    console.log('ProposalCreated 事件主题:', eventTopic);
-                    for (const log of receipt.logs) {
-                      console.log('检查日志:', { 
-                        topics: log.topics, 
-                        address: log.address,
-                        data: log.data 
-                      });
-                      if (log.topics && log.topics.length > 0 && log.topics[0] === eventTopic) {
-                        // 第一个 indexed 参数是 proposalId (topics[1])
-                        // 第二个 indexed 参数是 proposer (topics[2])
-                        if (log.topics[1]) {
-                          // 将 hex 字符串转换为 BigInt，再转换为 Number
-                          const proposalIdBigInt = BigInt(log.topics[1]);
-                          chainProposalId = Number(proposalIdBigInt);
-                          console.log('从事件主题中获取到提案ID:', chainProposalId);
-                          break;
-                        }
-                      }
-                    }
-                  } catch (e) {
-                    console.warn('直接解码事件数据失败:', e);
-                  }
-                }
-              }
-              
-              // 方法2: 如果无法从事件中获取，说明事件解析失败，尝试其他方法
-              // 注意：如果事件日志为空，上面的检查已经抛出错误
-              
-              // 方法3: 如果无法从事件中获取，使用创建后的数量（最不可靠，但作为备选）
-              // 创建后 proposalCount 已经增加，所以新提案ID就是当前的 proposalCount
-              if (chainProposalId === null) {
-                try {
-                  console.log('尝试从合约获取最新提案数量...');
-                  const newCountPromise = contract.getProposalCount();
-                  const newCountTimeoutPromise = new Promise((_, reject) => 
-                    setTimeout(() => reject(new Error('获取提案数量超时')), 10000)
-                  );
-                  const newCount = await Promise.race([newCountPromise, newCountTimeoutPromise]);
-                  // 检查返回值是否有效（排除 '0x'、null、undefined 等无效值）
-                  const newCountStr = newCount?.toString() || '';
-                  console.log('获取到的最新提案数量 (原始值):', newCountStr);
-                  if (newCountStr && newCountStr !== '0x' && newCountStr !== '0x0' && !isNaN(Number(newCount))) {
-                    chainProposalId = Number(newCount); // 创建后 proposalCount 已经增加，所以就是新提案ID
-                    console.log('从最新提案数量获取提案ID:', chainProposalId);
-                  } else {
-                    console.warn('获取到的最新提案数量无效:', newCountStr);
-                  }
-                } catch (countError) {
-                  console.warn('无法从合约获取提案ID，将仅保存到数据库:', countError);
-                  // 不阻止用户提交，只是不保存链上提案ID
-                }
-              }
-              
-              // 如果仍然无法获取提案ID，给出警告但不阻止提交
-              if (chainProposalId === null) {
-                console.warn('警告：无法获取链上提案ID，提案将仅保存到数据库');
-                setError('链上提案创建成功，但无法获取提案ID。提案将仅保存到数据库。');
-              } else {
-                console.log('成功获取链上提案ID:', chainProposalId);
-                // 清除错误提示，显示成功消息
-                setError('');
-              }
-              
-              // 保存交易哈希
-              if (receipt && receipt.hash) {
-                chainTransactionHash = receipt.hash;
-                console.log('交易哈希已保存:', chainTransactionHash);
-              }
-              
-              // 显示成功提示
-              if (chainProposalId !== null && chainTransactionHash) {
-                console.log('✅ 链上提案创建成功！', { 
-                  proposalId: chainProposalId, 
-                  txHash: chainTransactionHash 
-                });
-              }
-            } catch (chainError) {
-              console.error('链上创建提案失败:', chainError);
-              // 不阻止用户提交，允许仅保存到数据库
-              const errorMessage = chainError.message || chainError.toString();
-              // 如果是超时错误，给出更友好的提示
-              if (errorMessage.includes('超时')) {
-                setError('链上创建提案超时，提案将仅保存到数据库。请检查网络连接。');
-              } else if (errorMessage.includes('aborted') || errorMessage.includes('signal')) {
-                setError('链上创建提案被中断，提案将仅保存到数据库。请重试或检查 MetaMask 连接。');
-              } else if (errorMessage.includes('user rejected') || errorMessage.includes('User denied')) {
-                setError('您已取消交易，提案将仅保存到数据库。');
-              } else if (errorMessage.includes('insufficient funds')) {
-                setError('账户余额不足，无法支付 gas 费用。提案将仅保存到数据库。');
-              } else {
-                setError(`链上创建提案失败: ${errorMessage}。提案将仅保存到数据库。`);
-              }
-              // 不 return，允许继续提交到后端
+              const txResponse = await provider.getTransaction(receipt.hash);
+              gasPrice = txResponse?.gasPrice?.toString() || null;
+            } catch (e) {
+              console.warn('无法获取gasPrice:', e);
             }
           }
-        } catch (outerError) {
-          console.error('外层错误:', outerError);
-          setError(`提交提案时发生错误: ${outerError.message}。提案将仅保存到数据库。`);
+          
+          transactionFee = gasUsed && gasPrice 
+            ? (BigInt(gasUsed) * BigInt(gasPrice)).toString() 
+            : null;
+          blockNumber = receipt.blockNumber || null;
+          
+          console.log('Gas信息:', { gasUsed, gasPrice, transactionFee, blockNumber });
+          
+          console.log('Gas信息:', { gasUsed, gasPrice, transactionFee, blockNumber });
+          
+          // 从事件中获取提案ID
+          if (receipt.logs && receipt.logs.length > 0) {
+            const iface = contract.interface;
+            const eventTopic = iface.getEvent('ProposalCreated').topicHash;
+            
+            // 查找 ProposalCreated 事件
+            for (const log of receipt.logs) {
+              if (log.topics && log.topics[0] === eventTopic && log.topics[1]) {
+                // topics[1] 是提案ID（indexed uint256）
+                chainProposalId = Number(BigInt(log.topics[1]));
+                console.log('从事件中获取到提案ID:', chainProposalId);
+                break;
+              }
+            }
+            
+            // 如果从 topics 获取失败，尝试解析日志
+            if (chainProposalId === null) {
+              for (const log of receipt.logs) {
+                try {
+                  const parsedLog = iface.parseLog(log);
+                  if (parsedLog && parsedLog.name === 'ProposalCreated') {
+                    chainProposalId = Number(parsedLog.args[0]);
+                    console.log('从解析日志获取到提案ID:', chainProposalId);
+                    break;
+                  }
+                } catch (e) {
+                  // 继续尝试下一个日志
+                }
+              }
+            }
+          }
+          
+          // 如果仍然无法获取提案ID，尝试从合约查询
+          if (chainProposalId === null) {
+            try {
+              const count = await contract.getProposalCount();
+              chainProposalId = Number(count);
+              console.log('从合约提案数量获取提案ID:', chainProposalId);
+            } catch (e) {
+              console.warn('无法获取提案ID:', e);
+            }
+          }
+          
+          if (chainProposalId !== null) {
+            console.log('✅ 链上提案创建成功！', { 
+              proposalId: chainProposalId, 
+              txHash: chainTransactionHash 
+            });
+            // 显示成功提示
+            alert(`✅ 链上提案创建成功！\n提案ID: ${chainProposalId}\n交易哈希: ${chainTransactionHash}\nGas使用: ${gasUsed || 'N/A'}\nETH消耗: ${transactionFee ? ethers.formatEther(transactionFee) : 'N/A'} ETH`);
+          }
+        } catch (chainError) {
+          console.error('链上创建提案失败:', chainError);
+          const errorMessage = chainError.message || chainError.toString();
+          
+          // 根据错误类型给出提示
+          if (errorMessage.includes('user rejected') || errorMessage.includes('User denied')) {
+            setError('您已取消交易，提案将仅保存到数据库。');
+          } else if (errorMessage.includes('insufficient funds')) {
+            setError('账户余额不足，无法支付 gas 费用。提案将仅保存到数据库。');
+          } else if (errorMessage.includes('Failed to fetch') || errorMessage.includes('Failed to fetch')) {
+            setError('无法连接到区块链网络。请确保 Hardhat 节点正在运行 (npm run node)。提案将仅保存到数据库。');
+          } else {
+            setError(`链上创建提案失败: ${errorMessage}。提案将仅保存到数据库。`);
+          }
+          // 继续提交到数据库，不阻止用户
         }
-      } else {
-        // 如果未连接钱包，提示用户
-        console.log('未连接钱包，提案将仅保存到数据库');
       }
       
       // 创建FormData
@@ -417,17 +270,29 @@ const Proposals = () => {
       submitData.append('description', formData.description);
       submitData.append('category', formData.category);
       submitData.append('visibility', formData.visibility);
-      // 将本地时间转换为ISO格式
       submitData.append('startTime', new Date(formData.startTime).toISOString());
       submitData.append('endTime', new Date(formData.endTime).toISOString());
       
-      // 如果链上创建成功，添加链上提案ID和交易信息
+      // 如果链上创建成功，添加链上信息
       if (chainProposalId !== null) {
         submitData.append('chainProposalId', chainProposalId.toString());
         submitData.append('chainAddress', account);
       }
       if (chainTransactionHash) {
         submitData.append('chainTransactionHash', chainTransactionHash);
+        // 添加gas信息（如果存在）
+        if (typeof gasUsed !== 'undefined' && gasUsed !== null) {
+          submitData.append('gasUsed', gasUsed);
+        }
+        if (typeof gasPrice !== 'undefined' && gasPrice !== null) {
+          submitData.append('gasPrice', gasPrice);
+        }
+        if (typeof transactionFee !== 'undefined' && transactionFee !== null) {
+          submitData.append('transactionFee', transactionFee);
+        }
+        if (typeof blockNumber !== 'undefined' && blockNumber !== null) {
+          submitData.append('blockNumber', blockNumber.toString());
+        }
       }
       if (network) {
         submitData.append('network', network);
@@ -438,13 +303,20 @@ const Proposals = () => {
         submitData.append('images', image);
       });
 
+      // 提交到后端
       await proposalAPI.createProposal(submitData);
+      
+      // 清空表单
       setFormData({ title: '', description: '', category: 'general', visibility: 'all', startTime: '', endTime: '' });
       setSelectedImages([]);
       setImagePreviews([]);
       setShowCreateForm(false);
-      fetchProposals(); // 刷新列表
+      setError(''); // 清除错误提示
+      
+      // 刷新列表
+      fetchProposals();
     } catch (error) {
+      console.error('提交提案失败:', error);
       setError(error.response?.data?.message || '提交提案失败，请稍后重试');
     } finally {
       setSubmitting(false);

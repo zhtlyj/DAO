@@ -28,6 +28,23 @@ export const WalletProvider = ({ children }) => {
       const signer = await newProvider.getSigner();
       const address = await signer.getAddress();
       const currentNetwork = await getNetwork(newProvider);
+      
+      // 获取详细的网络信息
+      const networkInfo = await newProvider.getNetwork();
+      const chainId = Number(networkInfo.chainId);
+      
+      // 输出网络信息到控制台
+      console.log('========== 钱包连接成功 ==========');
+      console.log('账户地址:', address);
+      console.log('网络名称:', currentNetwork);
+      console.log('Chain ID:', chainId);
+      console.log('Chain ID (Hex):', networkInfo.chainId.toString());
+      console.log('网络信息:', {
+        name: networkInfo.name,
+        chainId: chainId,
+        networkName: currentNetwork
+      });
+      console.log('==================================');
 
       const daoContract = await getDAOContract(newProvider, currentNetwork);
 

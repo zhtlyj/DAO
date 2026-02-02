@@ -221,7 +221,11 @@ router.post('/', uploadProposal.array('images', 5), async (req, res) => {
             startTime: start,
             endTime: end
           },
-          status: 'confirmed'
+          status: 'confirmed',
+          gasUsed: req.body.gasUsed || null,
+          gasPrice: req.body.gasPrice || null,
+          transactionFee: req.body.transactionFee || null,
+          blockNumber: req.body.blockNumber || null
         });
         await transaction.save();
       } catch (txError) {
@@ -447,7 +451,11 @@ router.post('/:id/vote', async (req, res) => {
               chainVoteType: chainVoteType,
               isChangeVote: isChangeVote
             },
-            status: 'confirmed'
+            status: 'confirmed',
+            gasUsed: req.body.gasUsed || null,
+            gasPrice: req.body.gasPrice || null,
+            transactionFee: req.body.transactionFee || null,
+            blockNumber: req.body.blockNumber || null
           });
           await transaction.save();
         }

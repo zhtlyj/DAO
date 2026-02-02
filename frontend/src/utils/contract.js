@@ -46,6 +46,52 @@ export function isWalletConnected() {
 }
 
 /**
+ * 切换到 localhost 网络
+ * @returns {Promise<void>}
+ */
+async function switchToLocalhost() {
+  if (!isWalletConnected()) {
+    throw new Error('MetaMask or other Web3 wallet is not installed');
+  }
+
+  const chainId = '0x539'; // 1337 的十六进制
+  const localhostNetwork = {
+    chainId: chainId,
+    chainName: 'Localhost 8545',
+    nativeCurrency: {
+      name: 'Ether',
+      symbol: 'ETH',
+      decimals: 18,
+    },
+    rpcUrls: ['http://127.0.0.1:8545'],
+    blockExplorerUrls: null,
+  };
+
+  try {
+    // 尝试切换到 localhost 网络
+    await window.ethereum.request({
+      method: 'wallet_switchEthereumChain',
+      params: [{ chainId: chainId }],
+    });
+  } catch (switchError) {
+    // 如果网络不存在，错误码是 4902，需要添加网络
+    if (switchError.code === 4902) {
+      try {
+        // 添加 localhost 网络
+        await window.ethereum.request({
+          method: 'wallet_addEthereumChain',
+          params: [localhostNetwork],
+        });
+      } catch (addError) {
+        throw new Error(`添加 localhost 网络失败: ${addError.message}`);
+      }
+    } else {
+      throw new Error(`切换网络失败: ${switchError.message}`);
+    }
+  }
+}
+
+/**
  * 连接钱包
  * @returns {Promise<ethers.BrowserProvider>}
  */
@@ -58,12 +104,21 @@ export async function connectWallet() {
     // 请求连接账户
     await window.ethereum.request({ method: 'eth_requestAccounts' });
     
+    // 自动切换到 localhost 网络
+    await switchToLocalhost();
+    
     // 创建 provider
     const provider = new ethers.BrowserProvider(window.ethereum);
     
+    // 输出网络切换信息
+    const network = await provider.getNetwork();
+    const chainId = Number(network.chainId);
+    console.log('已切换到 localhost 网络');
+    console.log('当前 Chain ID:', chainId, `(0x${chainId.toString(16)})`);
+    
     return provider;
   } catch (error) {
-    throw new Error(`Failed to connect wallet: ${error.message}`);
+    throw new Error(`连接钱包失败: ${error.message}`);
   }
 }
 
@@ -126,6 +181,17 @@ export const ProposalStatus = {
   Passed: 2,
   Rejected: 3,
   Closed: 4
+};
+
+/**
+ * 数据库状态到合约状态的映射
+ */
+export const StatusMap = {
+  'pending': ProposalStatus.Pending,    // 0
+  'active': ProposalStatus.Active,      // 1
+  'passed': ProposalStatus.Passed,      // 2
+  'rejected': ProposalStatus.Rejected, // 3
+  'closed': ProposalStatus.Closed      // 4
 };
 
 /**
@@ -300,6 +366,57 @@ export async function getProposalCountFromChain(contract) {
     return Number(count);
   } catch (error) {
     throw new Error(`获取提案总数失败: ${error.message}`);
+  }
+}
+
+/**
+ * 获取合约所有者地址
+ * @param {ethers.Contract} contract - DAO 合约实例
+ * @returns {Promise<string>} 所有者地址
+ */
+export async function getContractOwner(contract) {
+  if (!contract) {
+    throw new Error('Contract instance is required');
+  }
+  try {
+    const owner = await contract.owner();
+    return owner;
+  } catch (error) {
+    throw new Error(`获取合约所有者失败: ${error.message}`);
+  }
+}
+
+/**
+ * 更新提案状态（调用合约）
+ * @param {ethers.Contract} contract - DAO 合约实例
+ * @param {number} proposalId - 提案 ID
+ * @param {number} status - 提案状态（ProposalStatus 枚举值）
+ * @param {string} currentAccount - 当前账户地址（可选，用于权限检查）
+ * @returns {Promise<ethers.ContractTransactionReceipt>}
+ */
+export async function updateProposalStatusOnChain(contract, proposalId, status, currentAccount = null) {
+  if (!contract) {
+    throw new Error('Contract instance is required');
+  }
+
+  try {
+    // 如果提供了当前账户，先检查是否是合约所有者
+    if (currentAccount) {
+      const owner = await getContractOwner(contract);
+      const ownerAddress = owner.toLowerCase();
+      const accountAddress = currentAccount.toLowerCase();
+      
+      if (ownerAddress !== accountAddress) {
+        throw new Error(`Only owner can call this function. Contract owner: ${owner}, Your address: ${currentAccount}`);
+      }
+    }
+    
+    // 调用合约更新状态
+    const tx = await contract.updateProposalStatus(proposalId, status);
+    const receipt = await tx.wait();
+    return receipt;
+  } catch (error) {
+    throw new Error(`更新提案状态失败: ${error.message}`);
   }
 }
 

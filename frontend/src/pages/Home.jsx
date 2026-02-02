@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react';
+import { ethers } from 'ethers';
 import Layout from '../components/Layout';
 import { useAuth } from '../context/AuthContext';
 import { useWallet } from '../context/WalletContext';
 import { proposalAPI } from '../services/api';
-import { voteOnChain, changeVoteOnChain, VoteType, getUserVoteFromChain } from '../utils/contract';
+import { voteOnChain, VoteType, getUserVoteFromChain } from '../utils/contract';
 import './Home.css';
 
 const Home = () => {
   const { user } = useAuth();
-  const { contract, isConnected, account } = useWallet();
+  const { contract, isConnected, account, network } = useWallet();
   const [allProposals, setAllProposals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -89,14 +90,34 @@ const Home = () => {
 
   const proposals = getFilteredProposals();
 
-  // 获取状态标签样式
-  const getStatusStyle = (status) => {
-    const styles = {
-      active: { bg: '#dbeafe', color: '#2563eb', text: '进行中' },
-      passed: { bg: '#d1fae5', color: '#059669', text: '已通过' },
-      closed: { bg: '#f3f4f6', color: '#6b7280', text: '已关闭' }
-    };
-    return styles[status] || styles.active;
+  // 获取状态标签样式（根据实际时间判断）
+  const getStatusStyle = (proposal) => {
+    const now = new Date();
+    const startTime = proposal.startTime ? new Date(proposal.startTime) : null;
+    const endTime = proposal.endTime ? new Date(proposal.endTime) : null;
+    
+    // 如果数据库状态是 closed 或 passed，直接返回
+    if (proposal.status === 'closed') {
+      return { bg: '#f3f4f6', color: '#6b7280', text: '已关闭' };
+    }
+    if (proposal.status === 'passed') {
+      return { bg: '#d1fae5', color: '#059669', text: '已通过' };
+    }
+    
+    // 根据实际时间判断状态
+    if (endTime && now > endTime) {
+      // 已过期，显示"已结束"
+      return { bg: '#fee2e2', color: '#dc2626', text: '已结束' };
+    } else if (startTime && now < startTime) {
+      // 未开始
+      return { bg: '#fef3c7', color: '#d97706', text: '未开始' };
+    } else if (startTime && endTime && now >= startTime && now <= endTime) {
+      // 进行中
+      return { bg: '#dbeafe', color: '#2563eb', text: '进行中' };
+    }
+    
+    // 默认返回进行中
+    return { bg: '#dbeafe', color: '#2563eb', text: '进行中' };
   };
 
   // 格式化日期
@@ -169,25 +190,41 @@ const Home = () => {
   const handleVote = async (voteType) => {
     if (!selectedProposal || voting) return;
     
+    // 检查是否已经投过票（每人只能投票一次）
+    if (userVote) {
+      setError('您已经投过票了，每人只能投票一次。');
+      return;
+    }
+    
     try {
       setVoting(true);
       setError('');
       
+      let chainTransactionHash = null;
+      let chainVoteType = null;
+      let gasUsed = null;
+      let gasPrice = null;
+      let transactionFee = null;
+      let blockNumber = null;
+      
       // 如果已连接钱包且有链上提案ID，先在链上投票
       if (isConnected && contract && selectedProposal.chainProposalId && account) {
         try {
+          // 映射投票类型
           const voteTypeMap = {
-            'upvote': VoteType.Upvote,
-            'downvote': VoteType.Downvote,
-            'abstain': VoteType.Abstain
+            'upvote': VoteType.Upvote,    // 0
+            'downvote': VoteType.Downvote, // 1
+            'abstain': VoteType.Abstain    // 2
           };
           
-          const chainVoteType = voteTypeMap[voteType];
+          chainVoteType = voteTypeMap[voteType];
           if (chainVoteType === undefined) {
             throw new Error('无效的投票类型');
           }
           
-          // 从合约查询用户是否已对该提案投票
+          setError('正在链上投票，请确认 MetaMask 交易...');
+          
+          // 查询用户是否已对该提案投票（链上检查）
           let hasVotedOnChain = false;
           try {
             const userVoteInfo = await getUserVoteFromChain(
@@ -197,58 +234,102 @@ const Home = () => {
             );
             hasVotedOnChain = userVoteInfo.voted;
             console.log(`用户对提案 ${selectedProposal.chainProposalId} 的投票状态:`, hasVotedOnChain);
+            
+            // 如果链上已投票，不允许再次投票
+            if (hasVotedOnChain) {
+              throw new Error('您已经投过票了，每人只能投票一次。');
+            }
           } catch (queryError) {
+            // 如果查询失败，检查是否是已投票错误
+            if (queryError.message && queryError.message.includes('已经投过票')) {
+              throw queryError;
+            }
             console.warn('查询链上投票状态失败，将尝试直接投票:', queryError);
             // 如果查询失败，假设未投票，尝试直接投票
           }
           
-          // 根据是否已投票，选择调用 vote 或 changeVote
-          let chainTransactionHash = null;
-          if (hasVotedOnChain) {
-            // 如果已投票，使用 changeVote 修改投票
-            console.log(`用户已投票，修改投票为: ${voteType}`);
-            const receipt = await changeVoteOnChain(contract, selectedProposal.chainProposalId, chainVoteType);
-            chainTransactionHash = receipt.hash;
-          } else {
-            // 如果未投票，使用 vote 首次投票
-            console.log(`用户首次投票: ${voteType}`);
-            const receipt = await voteOnChain(contract, selectedProposal.chainProposalId, chainVoteType);
-            chainTransactionHash = receipt.hash;
+          // 使用 vote 进行首次投票（每人只能投票一次）
+          console.log(`用户首次投票: ${voteType}`);
+          const receipt = await voteOnChain(contract, selectedProposal.chainProposalId, chainVoteType);
+          
+          chainTransactionHash = receipt.hash;
+          
+          // 提取gas信息
+          gasUsed = receipt.gasUsed?.toString() || null;
+          // gasPrice可能在receipt中，也可能需要从provider获取
+          gasPrice = receipt.gasPrice?.toString() || null;
+          // 如果receipt中没有gasPrice，尝试从交易中获取
+          if (!gasPrice && receipt.hash) {
+            try {
+              const txResponse = await provider.getTransaction(receipt.hash);
+              gasPrice = txResponse?.gasPrice?.toString() || null;
+            } catch (e) {
+              console.warn('无法获取gasPrice:', e);
+            }
           }
+          transactionFee = gasUsed && gasPrice 
+            ? (BigInt(gasUsed) * BigInt(gasPrice)).toString() 
+            : null;
+          blockNumber = receipt.blockNumber || null;
           
-          // 将链上投票信息传递给后端
-          const chainVoteData = {
-            chainVoted: true,
-            chainAddress: account,
-            chainVoteType: chainVoteType,
-            chainTransactionHash: chainTransactionHash,
-            network: network || 'hardhat'
-          };
+          // 获取投票类型文本
+          const voteTypeText = {
+            'upvote': '支持',
+            'downvote': '反对',
+            'abstain': '弃权'
+          }[voteType] || voteType;
           
-          // 调用后端API保存投票（包含链上信息）
-          const response = await proposalAPI.voteProposal(
-            selectedProposal._id, 
-            voteType,
-            chainVoteData
-          );
+          console.log('✅ 链上投票成功！', { 
+            proposalId: selectedProposal.chainProposalId,
+            voteType: voteType,
+            txHash: chainTransactionHash 
+          });
           
-          setSelectedProposal(response.data.proposal);
-          setUserVote(voteType);
+          // 显示成功提示
+          alert(`✅ 链上投票成功！\n投票类型: ${voteTypeText}\n提案ID: ${selectedProposal.chainProposalId}\n交易哈希: ${chainTransactionHash}\nGas使用: ${gasUsed || 'N/A'}\nETH消耗: ${transactionFee ? ethers.formatEther(transactionFee) : 'N/A'} ETH`);
           
-          // 更新列表中的提案数据
-          setAllProposals(prev => prev.map(p => 
-            p._id === selectedProposal._id ? response.data.proposal : p
-          ));
-          return; // 链上投票成功，直接返回
         } catch (chainError) {
           console.error('链上投票失败:', chainError);
-          setError(`链上投票失败: ${chainError.message}。将仅保存到数据库。`);
+          const errorMessage = chainError.message || chainError.toString();
+          
+          // 根据错误类型给出提示
+          if (errorMessage.includes('user rejected') || errorMessage.includes('User denied')) {
+            setError('您已取消交易，投票将仅保存到数据库。');
+          } else if (errorMessage.includes('insufficient funds')) {
+            setError('账户余额不足，无法支付 gas 费用。投票将仅保存到数据库。');
+          } else if (errorMessage.includes('Failed to fetch')) {
+            setError('无法连接到区块链网络。请确保 Hardhat 节点正在运行。投票将仅保存到数据库。');
+          } else if (errorMessage.includes('Already voted') || errorMessage.includes('已经投过票')) {
+            setError('您已经投过票了，每人只能投票一次。');
+            setVoting(false);
+            return; // 直接返回，不允许再次投票
+          } else {
+            setError(`链上投票失败: ${errorMessage}。投票将仅保存到数据库。`);
+          }
           // 继续执行，保存到数据库
         }
       }
       
-      // 如果没有链上投票或链上投票失败，仅保存到数据库
-      const response = await proposalAPI.voteProposal(selectedProposal._id, voteType);
+      // 准备链上投票数据（如果有）
+      const chainVoteData = chainTransactionHash ? {
+        chainVoted: true,
+        chainAddress: account,
+        chainVoteType: chainVoteType,
+        chainTransactionHash: chainTransactionHash,
+        network: network || 'hardhat',
+        gasUsed: gasUsed || null,
+        gasPrice: gasPrice || null,
+        transactionFee: transactionFee || null,
+        blockNumber: blockNumber || null
+      } : null;
+      
+      // 调用后端API保存投票（包含链上信息）
+      const response = await proposalAPI.voteProposal(
+        selectedProposal._id, 
+        voteType,
+        chainVoteData
+      );
+      
       setSelectedProposal(response.data.proposal);
       setUserVote(voteType);
       
@@ -256,6 +337,11 @@ const Home = () => {
       setAllProposals(prev => prev.map(p => 
         p._id === selectedProposal._id ? response.data.proposal : p
       ));
+      
+      // 清除错误提示（如果链上投票成功）
+      if (chainTransactionHash) {
+        setError('');
+      }
     } catch (error) {
       console.error('投票失败:', error);
       setError(error.response?.data?.message || '投票失败，请稍后重试');
@@ -440,7 +526,7 @@ const Home = () => {
           ) : (
             <div className="proposals-list">
               {proposals.map((proposal) => {
-                const statusStyle = getStatusStyle(proposal.status);
+                const statusStyle = getStatusStyle(proposal);
                 // 格式化截至时间
                 const formatEndTime = (dateString) => {
                   if (!dateString) return '未设置';
@@ -672,7 +758,8 @@ const Home = () => {
                           <button
                             className={`vote-btn vote-btn-upvote ${userVote === 'upvote' ? 'active' : ''}`}
                             onClick={() => handleVote('upvote')}
-                            disabled={voting}
+                            disabled={voting || !!userVote}
+                            title={userVote ? '您已经投过票了，每人只能投票一次' : ''}
                           >
                             <span className="vote-icon">👍</span>
                             <div className="vote-content">
@@ -684,7 +771,8 @@ const Home = () => {
                           <button
                             className={`vote-btn vote-btn-downvote ${userVote === 'downvote' ? 'active' : ''}`}
                             onClick={() => handleVote('downvote')}
-                            disabled={voting}
+                            disabled={voting || !!userVote}
+                            title={userVote ? '您已经投过票了，每人只能投票一次' : ''}
                           >
                             <span className="vote-icon">👎</span>
                             <div className="vote-content">
@@ -696,7 +784,8 @@ const Home = () => {
                           <button
                             className={`vote-btn vote-btn-abstain ${userVote === 'abstain' ? 'active' : ''}`}
                             onClick={() => handleVote('abstain')}
-                            disabled={voting}
+                            disabled={voting || !!userVote}
+                            title={userVote ? '您已经投过票了，每人只能投票一次' : ''}
                           >
                             <span className="vote-icon">🤷</span>
                             <div className="vote-content">
@@ -709,7 +798,7 @@ const Home = () => {
                         {voting && <div className="voting-indicator">投票中...</div>}
                         {userVote && (
                           <div className="vote-success-message">
-                            ✓ 您已选择：{userVote === 'upvote' ? '支持' : userVote === 'downvote' ? '反对' : '弃权'}
+                            ✓ 您已投票：{userVote === 'upvote' ? '支持' : userVote === 'downvote' ? '反对' : '弃权'}（每人只能投票一次）
                           </div>
                         )}
                       </div>

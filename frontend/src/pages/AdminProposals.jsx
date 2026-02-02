@@ -1,11 +1,15 @@
 import { useState, useEffect } from 'react';
+import { ethers } from 'ethers';
 import Layout from '../components/Layout';
 import { useAuth } from '../context/AuthContext';
+import { useWallet } from '../context/WalletContext';
 import { proposalAPI } from '../services/api';
+import { updateProposalStatusOnChain, StatusMap, getContractOwner } from '../utils/contract';
 import './AdminProposals.css';
 
 const AdminProposals = () => {
   const { user } = useAuth();
+  const { contract, isConnected, account, network, provider } = useWallet();
   const [proposals, setProposals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -52,10 +56,86 @@ const AdminProposals = () => {
     }
 
     try {
+      setError('正在更新提案状态...');
+      
+      // 找到提案对象
+      const proposal = proposals.find(p => p._id === rejectingProposalId);
+      let chainTransactionHash = null;
+      let gasUsed = null;
+      let gasPrice = null;
+      let transactionFee = null;
+      let blockNumber = null;
+      
+      // 如果已连接钱包且有链上提案ID，先更新链上状态
+      if (isConnected && contract && proposal?.chainProposalId && account) {
+        try {
+          const chainStatus = StatusMap['rejected']; // 3 = Rejected
+          console.log('更新链上提案状态为 Rejected...', { 
+            proposalId: proposal.chainProposalId, 
+            status: chainStatus 
+          });
+          
+          // 提示用户确认交易
+          setError('正在请求 MetaMask 确认交易，请在弹出的窗口中确认...');
+          
+          const receipt = await updateProposalStatusOnChain(
+            contract, 
+            proposal.chainProposalId, 
+            chainStatus,
+            account // 传递当前账户用于权限检查
+          );
+          
+          chainTransactionHash = receipt.hash;
+          
+          // 提取gas信息
+          gasUsed = receipt.gasUsed?.toString() || null;
+          gasPrice = receipt.gasPrice?.toString() || null;
+          // 如果receipt中没有gasPrice，尝试从交易中获取
+          if (!gasPrice && receipt.hash && provider) {
+            try {
+              const txResponse = await provider.getTransaction(receipt.hash);
+              gasPrice = txResponse?.gasPrice?.toString() || null;
+            } catch (e) {
+              console.warn('无法获取gasPrice:', e);
+            }
+          }
+          transactionFee = gasUsed && gasPrice 
+            ? (BigInt(gasUsed) * BigInt(gasPrice)).toString() 
+            : null;
+          blockNumber = receipt.blockNumber || null;
+          
+          console.log('✅ 链上状态更新成功！', { txHash: chainTransactionHash });
+          
+          // 显示成功提示
+          alert(`✅ 链上提案状态更新成功！\n操作: 拒绝提案\n提案ID: ${proposal.chainProposalId}\n交易哈希: ${chainTransactionHash}\nGas使用: ${gasUsed || 'N/A'}\nETH消耗: ${transactionFee ? ethers.formatEther(transactionFee) : 'N/A'} ETH`);
+        } catch (chainError) {
+          console.error('链上状态更新失败:', chainError);
+          const errorMessage = chainError.message || chainError.toString();
+          if (errorMessage.includes('Only owner') || errorMessage.includes('only owner') || errorMessage.includes('Contract owner')) {
+            // 尝试获取合约所有者地址以便显示
+            let ownerInfo = '';
+            try {
+              const owner = await getContractOwner(contract);
+              ownerInfo = `\n合约所有者地址: ${owner}\n当前账户地址: ${account}`;
+            } catch (e) {
+              console.warn('无法获取合约所有者:', e);
+            }
+            setError(`⚠️ 您不是合约所有者，无法更新链上状态。${ownerInfo}\n\n请确保：\n1. 使用部署合约时的账户连接钱包\n2. 或者联系合约所有者进行状态更新\n\n状态将仅保存到数据库。`);
+          } else if (errorMessage.includes('user rejected') || errorMessage.includes('User denied')) {
+            setError('您已取消交易，状态将仅保存到数据库。');
+          } else {
+            setError(`链上状态更新失败: ${errorMessage}。状态将仅保存到数据库。`);
+          }
+          // 继续执行，保存到数据库
+        }
+      }
+      
+      // 更新数据库状态
       await proposalAPI.updateProposal(rejectingProposalId, { 
         status: 'rejected',
         rejectionReason: rejectReason.trim()
       });
+      
       setError('');
       setShowRejectModal(false);
       setRejectReason('');
@@ -66,10 +146,100 @@ const AdminProposals = () => {
     }
   };
 
-  // 审核提案（通过）
+  // 审核提案（通过/激活/关闭）
   const handleReviewProposal = async (proposalId, status) => {
     try {
+      setError('正在更新提案状态...');
+      
+      // 找到提案对象
+      const proposal = proposals.find(p => p._id === proposalId);
+      let chainTransactionHash = null;
+      let gasUsed = null;
+      let gasPrice = null;
+      let transactionFee = null;
+      let blockNumber = null;
+      
+      // 获取状态文本
+      const statusText = {
+        'active': '通过审核',
+        'closed': '关闭提案',
+        'passed': '标记为已通过'
+      }[status] || status;
+      
+      // 如果已连接钱包且有链上提案ID，先更新链上状态
+      if (isConnected && contract && proposal?.chainProposalId && account) {
+        try {
+          const chainStatus = StatusMap[status];
+          if (chainStatus === undefined) {
+            console.warn(`状态 ${status} 没有对应的链上状态映射`);
+          } else {
+            console.log('更新链上提案状态...', { 
+              proposalId: proposal.chainProposalId, 
+              status: status,
+              chainStatus: chainStatus 
+            });
+            
+            // 提示用户确认交易
+            setError('正在请求 MetaMask 确认交易，请在弹出的窗口中确认...');
+            
+            const receipt = await updateProposalStatusOnChain(
+              contract, 
+              proposal.chainProposalId, 
+              chainStatus,
+              account // 传递当前账户用于权限检查
+            );
+            
+            chainTransactionHash = receipt.hash;
+            
+            // 提取gas信息
+            gasUsed = receipt.gasUsed?.toString() || null;
+            gasPrice = receipt.gasPrice?.toString() || null;
+            // 如果receipt中没有gasPrice，尝试从交易中获取
+            if (!gasPrice && receipt.hash && provider) {
+              try {
+                const txResponse = await provider.getTransaction(receipt.hash);
+                gasPrice = txResponse?.gasPrice?.toString() || null;
+              } catch (e) {
+                console.warn('无法获取gasPrice:', e);
+              }
+            }
+            transactionFee = gasUsed && gasPrice 
+              ? (BigInt(gasUsed) * BigInt(gasPrice)).toString() 
+              : null;
+            blockNumber = receipt.blockNumber || null;
+            
+            console.log('✅ 链上状态更新成功！', { txHash: chainTransactionHash });
+            
+            // 显示成功提示
+            alert(`✅ 链上提案状态更新成功！\n操作: ${statusText}\n提案ID: ${proposal.chainProposalId}\n交易哈希: ${chainTransactionHash}\nGas使用: ${gasUsed || 'N/A'}\nETH消耗: ${transactionFee ? ethers.formatEther(transactionFee) : 'N/A'} ETH`);
+          }
+        } catch (chainError) {
+          console.error('链上状态更新失败:', chainError);
+          const errorMessage = chainError.message || chainError.toString();
+          if (errorMessage.includes('Only owner') || errorMessage.includes('only owner') || errorMessage.includes('Contract owner')) {
+            // 尝试获取合约所有者地址以便显示
+            let ownerInfo = '';
+            try {
+              const owner = await getContractOwner(contract);
+              ownerInfo = `\n合约所有者地址: ${owner}\n当前账户地址: ${account}`;
+            } catch (e) {
+              console.warn('无法获取合约所有者:', e);
+            }
+            setError(`⚠️ 您不是合约所有者，无法更新链上状态。${ownerInfo}\n\n请确保：\n1. 使用部署合约时的账户连接钱包\n2. 或者联系合约所有者进行状态更新\n\n状态将仅保存到数据库。`);
+          } else if (errorMessage.includes('user rejected') || errorMessage.includes('User denied')) {
+            setError('您已取消交易，状态将仅保存到数据库。');
+          } else if (errorMessage.includes('Failed to fetch')) {
+            setError('无法连接到区块链网络。请确保 Hardhat 节点正在运行。状态将仅保存到数据库。');
+          } else {
+            setError(`链上状态更新失败: ${errorMessage}。状态将仅保存到数据库。`);
+          }
+          // 继续执行，保存到数据库
+        }
+      }
+      
+      // 更新数据库状态
       await proposalAPI.updateProposal(proposalId, { status });
+      
       setError('');
       fetchProposals(); // 刷新列表
       setSelectedProposal(null);

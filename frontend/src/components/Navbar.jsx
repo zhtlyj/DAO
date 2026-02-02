@@ -25,11 +25,6 @@ const Navbar = () => {
       { path: '/achievements', label: '成就与积分', icon: '🏅', roles: ['student', 'teacher', 'student_representative', 'teacher_representative', 'admin'] },
     ];
 
-    // 提交提案入口（仅学生/教师）
-    const representativeItems = [
-      { path: '/proposals/create', label: '提交提案', icon: '✍️', roles: ['student', 'teacher'] },
-    ];
-
     // 管理员专属菜单
     const adminItems = [
       { path: '/admin/users', label: '用户管理', icon: '👥', roles: ['admin', 'student_representative', 'teacher_representative'] },
@@ -38,7 +33,7 @@ const Navbar = () => {
     ];
 
     // 合并所有菜单项
-    const allItems = [...baseItems, ...representativeItems, ...adminItems];
+    const allItems = [...baseItems, ...adminItems];
 
     // 根据用户角色过滤菜单项
     return allItems.filter(item => item.roles.includes(user?.role));
