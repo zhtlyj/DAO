@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import logoImage from './tu.jpg';
 import './Navbar.css';
 
 const Navbar = () => {
@@ -47,7 +48,7 @@ const Navbar = () => {
       <div className="navbar-container">
         <div className="navbar-brand">
           <Link to="/" className="navbar-logo">
-            <span className="logo-icon">🏛️</span>
+            <img src={logoImage} alt="logo" className="logo-icon" />
             <span className="logo-text">校园 DAO</span>
           </Link>
         </div>

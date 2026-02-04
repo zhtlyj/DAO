@@ -2,6 +2,7 @@ import { useAuth } from '../context/AuthContext';
 import { useWallet } from '../context/WalletContext';
 import Navbar from './Navbar';
 import UserDropdown from './UserDropdown';
+import logoImage from './tu.jpg';
 import './Layout.css';
 
 const Layout = ({ children }) => {
@@ -17,7 +18,10 @@ const Layout = ({ children }) => {
     <div className="layout">
       <div className="layout-header">
         <div className="header-content">
-          <h1>校园 DAO 治理系统</h1>
+          <div className="header-title">
+            <img src={logoImage} alt="logo" className="header-logo" />
+            <h1>校园 DAO 治理系统</h1>
+          </div>
           <div className="user-info">
             {/* 钱包连接按钮 */}
             <div className="wallet-connect">
