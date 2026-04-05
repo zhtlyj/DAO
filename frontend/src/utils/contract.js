@@ -8,28 +8,31 @@ import DAO_INFO from '../contracts/DAO.json';
  * @param {string} network - 网络名称 (hardhat, localhost, sepolia 等)
  * @returns {Promise<ethers.Contract>} 合约实例
  */
-export async function getDAOContract(provider, network = 'hardhat') {
+export async function getDAOContract(provider, network = 'sepolia') {
   if (!provider) {
     throw new Error('Provider is required');
   }
 
   const signer = await provider.getSigner();
-  
+
+  const envAddress = import.meta.env.VITE_DAO_CONTRACT_ADDRESS;
   // 如果网络名称不在地址列表中，尝试使用其他网络地址
-  let contractAddress = DAO_INFO.addresses[network];
+  let contractAddress = envAddress || DAO_INFO.addresses[network];
   if (!contractAddress) {
     console.warn(`网络 ${network} 的合约地址未找到，尝试使用其他网络地址`);
-    // 优先尝试 localhost，然后尝试 hardhat
-    contractAddress = DAO_INFO.addresses['localhost'] || DAO_INFO.addresses['hardhat'];
+    contractAddress =
+      DAO_INFO.addresses['sepolia'] ||
+      DAO_INFO.addresses['localhost'] ||
+      DAO_INFO.addresses['hardhat'];
     if (contractAddress) {
-      console.warn(`使用 ${contractAddress === DAO_INFO.addresses['localhost'] ? 'localhost' : 'hardhat'} 网络的合约地址`);
+      console.warn('使用备用网络条目中的合约地址');
     }
   }
 
   if (!contractAddress) {
     const availableNetworks = Object.keys(DAO_INFO.addresses).join(', ');
     throw new Error(
-      `合约地址未找到。当前网络: ${network}，可用网络: ${availableNetworks}。请确保已运行 npm run deploy:local 部署合约到 localhost 网络。`
+      `合约地址未找到。当前网络: ${network}，可用网络: ${availableNetworks}。请在 frontend 配置 VITE_DAO_CONTRACT_ADDRESS 或在 backend/HardHat 执行 npm run deploy（Sepolia）部署合约。`
     );
   }
 
@@ -45,45 +48,44 @@ export function isWalletConnected() {
   return typeof window !== 'undefined' && typeof window.ethereum !== 'undefined';
 }
 
+/** Sepolia testnet chainId 11155111 */
+const SEPOLIA_CHAIN_ID_HEX = '0xaa36a7';
+
 /**
- * 切换到 localhost 网络
+ * 切换到 Sepolia 测试网
  * @returns {Promise<void>}
  */
-async function switchToLocalhost() {
+async function switchToSepolia() {
   if (!isWalletConnected()) {
     throw new Error('MetaMask or other Web3 wallet is not installed');
   }
 
-  const chainId = '0x539'; // 1337 的十六进制
-  const localhostNetwork = {
-    chainId: chainId,
-    chainName: 'Localhost 8545',
+  const sepoliaNetwork = {
+    chainId: SEPOLIA_CHAIN_ID_HEX,
+    chainName: 'Sepolia',
     nativeCurrency: {
       name: 'Ether',
       symbol: 'ETH',
       decimals: 18,
     },
-    rpcUrls: ['http://127.0.0.1:8545'],
-    blockExplorerUrls: null,
+    rpcUrls: [import.meta.env.VITE_SEPOLIA_RPC_URL || 'https://rpc.sepolia.org'],
+    blockExplorerUrls: ['https://sepolia.etherscan.io'],
   };
 
   try {
-    // 尝试切换到 localhost 网络
     await window.ethereum.request({
       method: 'wallet_switchEthereumChain',
-      params: [{ chainId: chainId }],
+      params: [{ chainId: SEPOLIA_CHAIN_ID_HEX }],
     });
   } catch (switchError) {
-    // 如果网络不存在，错误码是 4902，需要添加网络
     if (switchError.code === 4902) {
       try {
-        // 添加 localhost 网络
         await window.ethereum.request({
           method: 'wallet_addEthereumChain',
-          params: [localhostNetwork],
+          params: [sepoliaNetwork],
         });
       } catch (addError) {
-        throw new Error(`添加 localhost 网络失败: ${addError.message}`);
+        throw new Error(`添加 Sepolia 网络失败: ${addError.message}`);
       }
     } else {
       throw new Error(`切换网络失败: ${switchError.message}`);
@@ -104,16 +106,13 @@ export async function connectWallet() {
     // 请求连接账户
     await window.ethereum.request({ method: 'eth_requestAccounts' });
     
-    // 自动切换到 localhost 网络
-    await switchToLocalhost();
-    
-    // 创建 provider
+    await switchToSepolia();
+
     const provider = new ethers.BrowserProvider(window.ethereum);
-    
-    // 输出网络切换信息
+
     const network = await provider.getNetwork();
     const chainId = Number(network.chainId);
-    console.log('已切换到 localhost 网络');
+    console.log('已切换到 Sepolia 网络');
     console.log('当前 Chain ID:', chainId, `(0x${chainId.toString(16)})`);
     
     return provider;

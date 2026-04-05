@@ -3,8 +3,19 @@ const hre = require("hardhat");
 async function main() {
   console.log("开始部署智能合约...");
 
-  // 获取部署账户
-  const [deployer] = await hre.ethers.getSigners();
+  const signers = await hre.ethers.getSigners();
+  const deployer = signers[0];
+  if (!deployer) {
+    const net = hre.network.name;
+    if (net === "sepolia") {
+      throw new Error(
+        "未配置部署账户：请在 backend/HardHat/.env 中设置 PRIVATE_KEY（0x 开头的私钥），" +
+          "并确认文件与 hardhat.config.js 同目录。勿将 .env 提交到 git。"
+      );
+    }
+    throw new Error("无法获取部署账户（getSigners 为空）。");
+  }
+
   console.log("使用账户部署合约:", deployer.address);
   console.log("账户余额:", (await hre.ethers.provider.getBalance(deployer.address)).toString());
 
@@ -40,7 +51,20 @@ async function main() {
   if (fs.existsSync(addressPath)) {
     addresses = JSON.parse(fs.readFileSync(addressPath, "utf8"));
   }
-  
+
+  const frontendDir = path.join(__dirname, "../../../frontend/src/contracts");
+  const frontendContractPath = path.join(frontendDir, "DAO.json");
+  if (fs.existsSync(frontendContractPath)) {
+    try {
+      const prev = JSON.parse(fs.readFileSync(frontendContractPath, "utf8"));
+      if (prev.addresses && typeof prev.addresses === "object") {
+        addresses = { ...prev.addresses, ...addresses };
+      }
+    } catch (e) {
+      console.warn("读取前端 DAO.json 地址合并时跳过:", e.message);
+    }
+  }
+
   addresses[hre.network.name] = daoAddress;
   fs.writeFileSync(addressPath, JSON.stringify(addresses, null, 2));
   console.log("✅ 合约地址已保存到:", addressPath);
@@ -59,16 +83,12 @@ async function main() {
   };
   
   // 更新前端合约文件
-  // 从 backend/HardHat/scripts 到 frontend/src/contracts
-  const frontendDir = path.join(__dirname, "../../../frontend/src/contracts");
   const frontendRoot = path.join(__dirname, "../../../frontend");
   if (fs.existsSync(frontendRoot)) {
     if (!fs.existsSync(frontendDir)) {
       fs.mkdirSync(frontendDir, { recursive: true });
     }
     
-    // 更新前端合约信息文件
-    const frontendContractPath = path.join(frontendDir, "DAO.json");
     fs.writeFileSync(frontendContractPath, JSON.stringify(contractInfo, null, 2));
     console.log("✅ 前端合约地址已更新到:", frontendContractPath);
     

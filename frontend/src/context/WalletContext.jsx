@@ -70,7 +70,7 @@ export const WalletProvider = ({ children }) => {
       // 账户切换
       setAccount(accounts[0]);
       if (provider) {
-        const newContract = await getDAOContract(provider, network || 'hardhat');
+        const newContract = await getDAOContract(provider, network || 'sepolia');
         setContract(newContract);
       }
     }

@@ -212,7 +212,7 @@ router.post('/', uploadProposal.array('images', 5), async (req, res) => {
           type: 'create_proposal',
           transactionHash: req.body.chainTransactionHash,
           chainAddress: req.body.chainAddress,
-          network: req.body.network || 'hardhat',
+          network: req.body.network || 'sepolia',
           proposal: proposal._id,
           chainProposalId: proposalData.chainProposalId || null,
           details: {
@@ -443,7 +443,7 @@ router.post('/:id/vote', async (req, res) => {
             type: isChangeVote ? 'change_vote' : 'vote',
             transactionHash: chainTransactionHash,
             chainAddress: chainAddress,
-            network: req.body.network || 'hardhat',
+            network: req.body.network || 'sepolia',
             proposal: proposalId,
             chainProposalId: proposal.chainProposalId || null,
             details: {

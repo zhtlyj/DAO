@@ -1,6 +1,8 @@
+const path = require("path");
 require("@nomicfoundation/hardhat-toolbox");
 require("@nomicfoundation/hardhat-verify");
-require("dotenv").config();
+// 始终从本目录加载 .env（避免从仓库根目录执行时读不到 backend/HardHat/.env）
+require("dotenv").config({ path: path.join(__dirname, ".env") });
 
 /** @type import('hardhat/config').HardhatUserConfig */
 module.exports = {
@@ -21,11 +23,14 @@ module.exports = {
       url: "http://127.0.0.1:8545",
       chainId: 1337,
     },
-    // 可以添加其他网络配置，如 Sepolia, Mumbai 等
-    // sepolia: {
-    //   url: process.env.SEPOLIA_RPC_URL || "",
-    //   accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
-    // },
+    sepolia: {
+      // 公共 RPC 易拥堵导致 HeadersTimeout；可换 Alchemy/Infura 等在 .env 设 SEPOLIA_RPC_URL
+      url:
+        process.env.SEPOLIA_RPC_URL ||
+        "https://ethereum-sepolia.publicnode.com",
+      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
+      timeout: 180000,
+    },
   },
   paths: {
     sources: "./contracts",

@@ -426,8 +426,9 @@
   ],
   "addresses": {
     "hardhat": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
-    "localhost": "0x5FbDB2315678afecb367f032d93F642f64180aa3"
+    "localhost": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+    "sepolia": "0x6b92Fd8B455B68aaC5b6DC942695C9C8A87d8762"
   },
   "contractName": "DAO",
-  "network": "hardhat"
+  "network": "sepolia"
 }

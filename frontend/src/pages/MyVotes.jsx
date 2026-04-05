@@ -268,7 +268,7 @@ const MyVotes = () => {
         chainAddress: account,
         chainVoteType: chainVoteType,
         chainTransactionHash: chainTransactionHash,
-        network: network || 'hardhat',
+        network: network || 'sepolia',
         gasUsed: gasUsed || null,
         gasPrice: gasPrice || null,
         transactionFee: transactionFee || null,

@@ -24,7 +24,7 @@ const transactionSchema = new mongoose.Schema({
   },
   network: {
     type: String,
-    default: 'hardhat',
+    default: 'sepolia',
     trim: true
   },
   // 关联的提案ID（数据库中的）

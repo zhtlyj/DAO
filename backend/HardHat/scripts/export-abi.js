@@ -36,7 +36,7 @@ async function exportABI() {
       abi: abi,
       addresses: addresses,
       contractName: "DAO",
-      network: "hardhat"
+      network: addresses.sepolia ? "sepolia" : "hardhat",
     };
 
     const infoPath = path.join(exportDir, "DAO.json");
