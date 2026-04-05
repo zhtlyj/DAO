@@ -5,6 +5,7 @@ import Layout from '../components/Layout';
 import { useAuth } from '../context/AuthContext';
 import { useWallet } from '../context/WalletContext';
 import { proposalAPI } from '../services/api';
+import { getProposalCountFromChain } from '../utils/contract';
 import './Proposals.css';
 
 const Proposals = () => {
@@ -230,7 +231,10 @@ const Proposals = () => {
           // 如果仍然无法获取提案ID，尝试从合约查询
           if (chainProposalId === null) {
             try {
-              const count = await contract.getProposalCount();
+              const count = await getProposalCountFromChain(
+                contract,
+                network || 'sepolia'
+              );
               chainProposalId = Number(count);
               console.log('从合约提案数量获取提案ID:', chainProposalId);
             } catch (e) {

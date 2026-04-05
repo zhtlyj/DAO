@@ -196,9 +196,10 @@ const MyVotes = () => {
           let hasVotedOnChain = false;
           try {
             const userVoteInfo = await getUserVoteFromChain(
-              contract, 
-              selectedProposal.chainProposalId, 
-              account
+              contract,
+              selectedProposal.chainProposalId,
+              account,
+              network || 'sepolia'
             );
             hasVotedOnChain = userVoteInfo.voted;
             console.log(`用户对提案 ${selectedProposal.chainProposalId} 的投票状态:`, hasVotedOnChain);

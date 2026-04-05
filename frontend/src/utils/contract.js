@@ -2,6 +2,52 @@ import { ethers } from 'ethers';
 import DAO_ABI from '../contracts/DAO.abi.json';
 import DAO_INFO from '../contracts/DAO.json';
 
+/** Sepolia 只读 RPC：走公共节点，避免 MetaMask 默认 Infura 的 project quota */
+const DEFAULT_SEPOLIA_READ_RPC = 'https://ethereum-sepolia.publicnode.com';
+
+/**
+ * 解析 DAO 合约部署地址（与 getDAOContract 一致）
+ */
+export function resolveDAOContractAddress(network = 'sepolia') {
+  const envAddress = import.meta.env.VITE_DAO_CONTRACT_ADDRESS;
+  let contractAddress = envAddress || DAO_INFO.addresses[network];
+  if (!contractAddress) {
+    contractAddress =
+      DAO_INFO.addresses['sepolia'] ||
+      DAO_INFO.addresses['localhost'] ||
+      DAO_INFO.addresses['hardhat'];
+  }
+  return contractAddress || null;
+}
+
+/**
+ * 只读合约实例（eth_call 不经过 MetaMask RPC，可规避 Infura 配额限制）
+ * @param {string} network
+ * @returns {ethers.Contract | null}
+ */
+export function getReadOnlyDaoContract(network = 'sepolia') {
+  const address = resolveDAOContractAddress(network);
+  if (!address) return null;
+  const n = String(network || '').toLowerCase();
+  let rpcUrl = null;
+  if (n === 'sepolia') {
+    rpcUrl =
+      import.meta.env.VITE_SEPOLIA_READ_RPC_URL ||
+      import.meta.env.VITE_SEPOLIA_RPC_URL ||
+      DEFAULT_SEPOLIA_READ_RPC;
+  } else if (n === 'localhost' || n === 'hardhat') {
+    rpcUrl = import.meta.env.VITE_LOCAL_RPC_URL || 'http://127.0.0.1:8545';
+  }
+  if (!rpcUrl) return null;
+  const provider = new ethers.JsonRpcProvider(rpcUrl);
+  return new ethers.Contract(address, DAO_ABI, provider);
+}
+
+function pickReadContract(contract, network) {
+  const read = getReadOnlyDaoContract(network);
+  return read || contract;
+}
+
 /**
  * 获取 DAO 合约实例
  * @param {ethers.BrowserProvider} provider - ethers provider
@@ -15,25 +61,16 @@ export async function getDAOContract(provider, network = 'sepolia') {
 
   const signer = await provider.getSigner();
 
-  const envAddress = import.meta.env.VITE_DAO_CONTRACT_ADDRESS;
-  // 如果网络名称不在地址列表中，尝试使用其他网络地址
-  let contractAddress = envAddress || DAO_INFO.addresses[network];
-  if (!contractAddress) {
-    console.warn(`网络 ${network} 的合约地址未找到，尝试使用其他网络地址`);
-    contractAddress =
-      DAO_INFO.addresses['sepolia'] ||
-      DAO_INFO.addresses['localhost'] ||
-      DAO_INFO.addresses['hardhat'];
-    if (contractAddress) {
-      console.warn('使用备用网络条目中的合约地址');
-    }
-  }
-
+  const contractAddress = resolveDAOContractAddress(network);
   if (!contractAddress) {
     const availableNetworks = Object.keys(DAO_INFO.addresses).join(', ');
     throw new Error(
       `合约地址未找到。当前网络: ${network}，可用网络: ${availableNetworks}。请在 frontend 配置 VITE_DAO_CONTRACT_ADDRESS 或在 backend/HardHat 执行 npm run deploy（Sepolia）部署合约。`
     );
+  }
+
+  if (!import.meta.env.VITE_DAO_CONTRACT_ADDRESS && !DAO_INFO.addresses[network]) {
+    console.warn(`网络 ${network} 的合约地址未找到，使用备用地址`);
   }
 
   console.log(`使用合约地址: ${contractAddress} (网络: ${network})`);
@@ -68,7 +105,7 @@ async function switchToSepolia() {
       symbol: 'ETH',
       decimals: 18,
     },
-    rpcUrls: [import.meta.env.VITE_SEPOLIA_RPC_URL || 'https://rpc.sepolia.org'],
+    rpcUrls: [import.meta.env.VITE_SEPOLIA_RPC_URL || DEFAULT_SEPOLIA_READ_RPC],
     blockExplorerUrls: ['https://sepolia.etherscan.io'],
   };
 
@@ -303,13 +340,14 @@ export async function changeVoteOnChain(contract, proposalId, voteType) {
  * @param {number} proposalId - 提案 ID
  * @returns {Promise<Object>}
  */
-export async function getProposalFromChain(contract, proposalId) {
+export async function getProposalFromChain(contract, proposalId, network = 'sepolia') {
   if (!contract) {
     throw new Error('Contract instance is required');
   }
 
   try {
-    const proposal = await contract.getProposal(proposalId);
+    const c = pickReadContract(contract, network);
+    const proposal = await c.getProposal(proposalId);
     return {
       id: proposal.id.toString(),
       title: proposal.title,
@@ -334,13 +372,19 @@ export async function getProposalFromChain(contract, proposalId) {
  * @param {string} voterAddress - 投票者地址
  * @returns {Promise<Object>}
  */
-export async function getUserVoteFromChain(contract, proposalId, voterAddress) {
+export async function getUserVoteFromChain(
+  contract,
+  proposalId,
+  voterAddress,
+  network = 'sepolia'
+) {
   if (!contract) {
     throw new Error('Contract instance is required');
   }
 
   try {
-    const result = await contract.getUserVote(proposalId, voterAddress);
+    const c = pickReadContract(contract, network);
+    const result = await c.getUserVote(proposalId, voterAddress);
     return {
       voteType: Number(result.voteType),
       voted: result.voted
@@ -355,13 +399,14 @@ export async function getUserVoteFromChain(contract, proposalId, voterAddress) {
  * @param {ethers.Contract} contract - DAO 合约实例
  * @returns {Promise<number>}
  */
-export async function getProposalCountFromChain(contract) {
+export async function getProposalCountFromChain(contract, network = 'sepolia') {
   if (!contract) {
     throw new Error('Contract instance is required');
   }
 
   try {
-    const count = await contract.getProposalCount();
+    const c = pickReadContract(contract, network);
+    const count = await c.getProposalCount();
     return Number(count);
   } catch (error) {
     throw new Error(`获取提案总数失败: ${error.message}`);
@@ -369,17 +414,25 @@ export async function getProposalCountFromChain(contract) {
 }
 
 /**
- * 获取合约所有者地址
- * @param {ethers.Contract} contract - DAO 合约实例
+ * 获取合约所有者地址（优先走只读 RPC，避免 MetaMask/Infura 配额）
+ * @param {ethers.Contract} contract - DAO 合约实例（回退用）
+ * @param {string} network
  * @returns {Promise<string>} 所有者地址
  */
-export async function getContractOwner(contract) {
+export async function getContractOwner(contract, network = 'sepolia') {
   if (!contract) {
     throw new Error('Contract instance is required');
   }
+  const read = getReadOnlyDaoContract(network);
+  if (read) {
+    try {
+      return await read.owner();
+    } catch (e) {
+      console.warn('只读 RPC 查询 owner 失败，回退到钱包 RPC:', e);
+    }
+  }
   try {
-    const owner = await contract.owner();
-    return owner;
+    return await contract.owner();
   } catch (error) {
     throw new Error(`获取合约所有者失败: ${error.message}`);
   }
@@ -391,9 +444,16 @@ export async function getContractOwner(contract) {
  * @param {number} proposalId - 提案 ID
  * @param {number} status - 提案状态（ProposalStatus 枚举值）
  * @param {string} currentAccount - 当前账户地址（可选，用于权限检查）
+ * @param {string} network - 用于只读查询 owner，默认 sepolia
  * @returns {Promise<ethers.ContractTransactionReceipt>}
  */
-export async function updateProposalStatusOnChain(contract, proposalId, status, currentAccount = null) {
+export async function updateProposalStatusOnChain(
+  contract,
+  proposalId,
+  status,
+  currentAccount = null,
+  network = 'sepolia'
+) {
   if (!contract) {
     throw new Error('Contract instance is required');
   }
@@ -401,7 +461,7 @@ export async function updateProposalStatusOnChain(contract, proposalId, status, 
   try {
     // 如果提供了当前账户，先检查是否是合约所有者
     if (currentAccount) {
-      const owner = await getContractOwner(contract);
+      const owner = await getContractOwner(contract, network);
       const ownerAddress = owner.toLowerCase();
       const accountAddress = currentAccount.toLowerCase();
       

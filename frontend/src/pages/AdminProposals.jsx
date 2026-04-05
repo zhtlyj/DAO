@@ -79,10 +79,11 @@ const AdminProposals = () => {
           setError('正在请求 MetaMask 确认交易，请在弹出的窗口中确认...');
           
           const receipt = await updateProposalStatusOnChain(
-            contract, 
-            proposal.chainProposalId, 
+            contract,
+            proposal.chainProposalId,
             chainStatus,
-            account // 传递当前账户用于权限检查
+            account,
+            network || 'sepolia'
           );
           
           chainTransactionHash = receipt.hash;
@@ -115,7 +116,7 @@ const AdminProposals = () => {
             // 尝试获取合约所有者地址以便显示
             let ownerInfo = '';
             try {
-              const owner = await getContractOwner(contract);
+              const owner = await getContractOwner(contract, network || 'sepolia');
               ownerInfo = `\n合约所有者地址: ${owner}\n当前账户地址: ${account}`;
             } catch (e) {
               console.warn('无法获取合约所有者:', e);
@@ -183,10 +184,11 @@ const AdminProposals = () => {
             setError('正在请求 MetaMask 确认交易，请在弹出的窗口中确认...');
             
             const receipt = await updateProposalStatusOnChain(
-              contract, 
-              proposal.chainProposalId, 
+              contract,
+              proposal.chainProposalId,
               chainStatus,
-              account // 传递当前账户用于权限检查
+              account,
+              network || 'sepolia'
             );
             
             chainTransactionHash = receipt.hash;
@@ -220,7 +222,7 @@ const AdminProposals = () => {
             // 尝试获取合约所有者地址以便显示
             let ownerInfo = '';
             try {
-              const owner = await getContractOwner(contract);
+              const owner = await getContractOwner(contract, network || 'sepolia');
               ownerInfo = `\n合约所有者地址: ${owner}\n当前账户地址: ${account}`;
             } catch (e) {
               console.warn('无法获取合约所有者:', e);
