@@ -6,6 +6,46 @@ import uploadProposal from '../middleware/uploadProposal.js';
 
 const router = express.Router();
 
+function normalizeAddr(a) {
+  if (!a || typeof a !== 'string') return null;
+  return a.trim().toLowerCase();
+}
+
+/** GET /my-vote：当前登录用户下，是否以「该钱包」投过票 */
+function findUserVoteForRead(proposal, userId, wallet) {
+  const uid = userId.toString();
+  const records = proposal.votes.voterRecords.filter(
+    (r) => r.user.toString() === uid
+  );
+  const w = normalizeAddr(wallet);
+  if (w) {
+    const byChain = records.find((r) => normalizeAddr(r.chainAddress) === w);
+    if (byChain) return byChain;
+    const noChain = records.filter((r) => !r.chainAddress);
+    if (noChain.length === 1) return noChain[0];
+    return null;
+  }
+  return records[0] || null;
+}
+
+/** POST /vote：按 user + 链上地址（若有）定位要更新或新增的记录 */
+function findUserVoteForPost(proposal, userId, bodyChain) {
+  const uid = userId.toString();
+  const records = proposal.votes.voterRecords.filter(
+    (r) => r.user.toString() === uid
+  );
+  const n = normalizeAddr(bodyChain);
+  if (n) {
+    const hit = records.find((r) => normalizeAddr(r.chainAddress) === n);
+    if (hit) return hit;
+    const noChain = records.filter((r) => !r.chainAddress);
+    if (noChain.length === 1) return noChain[0];
+    return null;
+  }
+  if (records.length === 1) return records[0];
+  return records.find((r) => !r.chainAddress) || null;
+}
+
 // 所有路由都需要认证
 router.use(authenticate);
 
@@ -348,10 +388,7 @@ router.post('/:id/vote', async (req, res) => {
       return res.status(400).json({ message: '投票已结束' });
     }
 
-    // 检查用户是否已经投票
-    const existingVote = proposal.votes.voterRecords.find(
-      record => record.user.toString() === userId.toString()
-    );
+    const existingVote = findUserVoteForPost(proposal, userId, chainAddress);
 
     let updatedProposal;
     
@@ -563,11 +600,12 @@ router.post('/:id/comments/:commentId/replies', async (req, res) => {
   }
 });
 
-// 获取用户的投票状态
+// 获取用户的投票状态（可选 ?wallet=0x… 按当前连接的钱包区分，与链上一致）
 router.get('/:id/my-vote', async (req, res) => {
   try {
     const userId = req.user._id;
     const proposalId = req.params.id;
+    const wallet = req.query.wallet;
 
     const proposal = await Proposal.findById(proposalId);
     
@@ -575,9 +613,7 @@ router.get('/:id/my-vote', async (req, res) => {
       return res.status(404).json({ message: '提案不存在' });
     }
 
-    const userVote = proposal.votes.voterRecords.find(
-      record => record.user.toString() === userId.toString()
-    );
+    const userVote = findUserVoteForRead(proposal, userId, wallet);
 
     res.json({
       hasVoted: !!userVote,

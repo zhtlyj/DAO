@@ -83,7 +83,10 @@ export const proposalAPI = {
     }
     return api.post(`/proposals/${id}/vote`, data);
   },
-  getMyVote: (id) => api.get(`/proposals/${id}/my-vote`),
+  getMyVote: (id, wallet) =>
+    api.get(`/proposals/${id}/my-vote`, {
+      params: wallet ? { wallet } : {},
+    }),
   addComment: (id, content) => api.post(`/proposals/${id}/comments`, { content }),
   addReply: (id, commentId, content) => api.post(`/proposals/${id}/comments/${commentId}/replies`, { content }),
 };

@@ -153,7 +153,7 @@ const Home = () => {
       setShowDetailModal(true);
       const [proposalResponse, voteResponse] = await Promise.all([
         proposalAPI.getProposalById(proposalId),
-        proposalAPI.getMyVote(proposalId)
+        proposalAPI.getMyVote(proposalId, account),
       ]);
       setSelectedProposal(proposalResponse.data);
       setUserVote(voteResponse.data.voteType);
@@ -176,6 +176,23 @@ const Home = () => {
     setReplySubmittingMap({});
     setReplyVisibleMap({});
   };
+
+  // 切换 MetaMask 账户或连接钱包后，按当前地址重新拉取「是否已投」
+  useEffect(() => {
+    if (!showDetailModal || !selectedProposal?._id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const voteResponse = await proposalAPI.getMyVote(selectedProposal._id, account);
+        if (!cancelled) setUserVote(voteResponse.data.voteType);
+      } catch (e) {
+        console.error('刷新投票状态失败:', e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [account, showDetailModal, selectedProposal?._id]);
 
   // 检查提案是否可投票
   const canVote = (proposal) => {
@@ -323,11 +340,14 @@ const Home = () => {
         blockNumber: blockNumber || null
       } : null;
       
-      // 调用后端API保存投票（包含链上信息）
+      const voteBody = { ...(chainVoteData || {}) };
+      if (isConnected && account && !voteBody.chainAddress) {
+        voteBody.chainAddress = account;
+      }
       const response = await proposalAPI.voteProposal(
-        selectedProposal._id, 
+        selectedProposal._id,
         voteType,
-        chainVoteData
+        Object.keys(voteBody).length ? voteBody : null
       );
       
       setSelectedProposal(response.data.proposal);

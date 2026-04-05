@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { ethers } from 'ethers';
 import { connectWallet, isWalletConnected, getDAOContract, getNetwork } from '../utils/contract';
 
 const WalletContext = createContext(null);
@@ -16,8 +17,28 @@ export const WalletProvider = ({ children }) => {
   const [provider, setProvider] = useState(null);
   const [contract, setContract] = useState(null);
   const [network, setNetwork] = useState(null);
+  const [chainId, setChainId] = useState(null);
+  const [nativeBalance, setNativeBalance] = useState(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState(null);
+
+  const refreshChainAndBalance = useCallback(async (browserProvider) => {
+    if (!browserProvider || !account) {
+      setChainId(null);
+      setNativeBalance(null);
+      return;
+    }
+    try {
+      const net = await browserProvider.getNetwork();
+      setChainId(Number(net.chainId));
+      const nw = await getNetwork(browserProvider);
+      setNetwork(nw);
+      const bal = await browserProvider.getBalance(account);
+      setNativeBalance(ethers.formatEther(bal));
+    } catch (e) {
+      console.warn('刷新链信息或余额失败:', e);
+    }
+  }, [account]);
 
   const handleConnect = async () => {
     try {
@@ -31,17 +52,17 @@ export const WalletProvider = ({ children }) => {
       
       // 获取详细的网络信息
       const networkInfo = await newProvider.getNetwork();
-      const chainId = Number(networkInfo.chainId);
+      const numericChainId = Number(networkInfo.chainId);
       
       // 输出网络信息到控制台
       console.log('========== 钱包连接成功 ==========');
       console.log('账户地址:', address);
       console.log('网络名称:', currentNetwork);
-      console.log('Chain ID:', chainId);
+      console.log('Chain ID:', numericChainId);
       console.log('Chain ID (Hex):', networkInfo.chainId.toString());
       console.log('网络信息:', {
         name: networkInfo.name,
-        chainId: chainId,
+        chainId: numericChainId,
         networkName: currentNetwork
       });
       console.log('==================================');
@@ -52,6 +73,13 @@ export const WalletProvider = ({ children }) => {
       setAccount(address);
       setContract(daoContract);
       setNetwork(currentNetwork);
+      setChainId(numericChainId);
+      try {
+        const bal = await newProvider.getBalance(address);
+        setNativeBalance(ethers.formatEther(bal));
+      } catch {
+        setNativeBalance(null);
+      }
     } catch (err) {
       console.error('连接钱包失败:', err);
       setError(err.message || '连接钱包失败');
@@ -62,10 +90,12 @@ export const WalletProvider = ({ children }) => {
 
   const handleAccountsChanged = async (accounts) => {
     if (accounts.length === 0) {
-      // 用户断开连接
       setAccount(null);
       setProvider(null);
       setContract(null);
+      setNetwork(null);
+      setChainId(null);
+      setNativeBalance(null);
     } else {
       // 账户切换
       setAccount(accounts[0]);
@@ -76,10 +106,16 @@ export const WalletProvider = ({ children }) => {
     }
   };
 
-  const handleChainChanged = async (chainId) => {
-    // 网络切换，重新连接
+  const handleChainChanged = async () => {
     window.location.reload();
   };
+
+  useEffect(() => {
+    if (!provider || !account) return;
+    refreshChainAndBalance(provider);
+    const id = setInterval(() => refreshChainAndBalance(provider), 20000);
+    return () => clearInterval(id);
+  }, [provider, account, refreshChainAndBalance]);
 
   // 检查是否已连接钱包
   useEffect(() => {
@@ -117,6 +153,8 @@ export const WalletProvider = ({ children }) => {
     setProvider(null);
     setContract(null);
     setNetwork(null);
+    setChainId(null);
+    setNativeBalance(null);
     setError(null);
   };
 
@@ -125,6 +163,8 @@ export const WalletProvider = ({ children }) => {
     provider,
     contract,
     network,
+    chainId,
+    nativeBalance,
     isConnected: !!account && !!contract,
     isConnecting,
     error,
