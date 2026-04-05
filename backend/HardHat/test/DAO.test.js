@@ -187,11 +187,23 @@ describe("DAO Contract", function () {
       expect(proposal.status).to.equal(1); // 1 = Active
     });
 
-    it("非所有者不应该能够更新提案状态", async function () {
-      // ProposalStatus: Pending=0, Active=1, Passed=2, Rejected=3, Closed=4
-      await expect(
-        dao.connect(addr1).updateProposalStatus(1, 1) // 1 = Active
-      ).to.be.revertedWith("Only owner can call this function");
+    it("任意地址应能够更新提案状态", async function () {
+      const currentBlock = await ethers.provider.getBlock("latest");
+      const currentTime = currentBlock.timestamp;
+      const startTime = currentTime + 3600;
+      const endTime = startTime + 86400;
+
+      await dao.connect(addr1).createProposal(
+        "开放审核测试",
+        "描述",
+        startTime,
+        endTime
+      );
+
+      const tx = await dao.connect(addr2).updateProposalStatus(1, 1); // 非 owner 也可
+      await expect(tx)
+        .to.emit(dao, "ProposalStatusChanged")
+        .withArgs(1, 1);
     });
   });
 

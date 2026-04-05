@@ -73,11 +73,6 @@ contract DAO {
     );
 
     // 修饰符
-    modifier onlyOwner() {
-        require(msg.sender == owner, "Only owner can call this function");
-        _;
-    }
-
     modifier validProposal(uint256 _proposalId) {
         require(_proposalId > 0 && _proposalId <= proposalCount, "Invalid proposal ID");
         _;
@@ -208,13 +203,12 @@ contract DAO {
     }
 
     /**
-     * @dev 更新提案状态（仅所有者）
+     * @dev 更新提案状态（开放调用；实际审核权限由应用层控制）
      * @param _proposalId 提案 ID
      * @param _status 新状态
      */
     function updateProposalStatus(uint256 _proposalId, ProposalStatus _status)
         external
-        onlyOwner
         validProposal(_proposalId)
     {
         Proposal storage proposal = proposals[_proposalId];

@@ -4,7 +4,7 @@ import Layout from '../components/Layout';
 import { useAuth } from '../context/AuthContext';
 import { useWallet } from '../context/WalletContext';
 import { proposalAPI } from '../services/api';
-import { updateProposalStatusOnChain, StatusMap, getContractOwner } from '../utils/contract';
+import { updateProposalStatusOnChain, StatusMap } from '../utils/contract';
 import './AdminProposals.css';
 
 const AdminProposals = () => {
@@ -81,9 +81,7 @@ const AdminProposals = () => {
           const receipt = await updateProposalStatusOnChain(
             contract,
             proposal.chainProposalId,
-            chainStatus,
-            account,
-            network || 'sepolia'
+            chainStatus
           );
           
           chainTransactionHash = receipt.hash;
@@ -112,17 +110,7 @@ const AdminProposals = () => {
         } catch (chainError) {
           console.error('链上状态更新失败:', chainError);
           const errorMessage = chainError.message || chainError.toString();
-          if (errorMessage.includes('Only owner') || errorMessage.includes('only owner') || errorMessage.includes('Contract owner')) {
-            // 尝试获取合约所有者地址以便显示
-            let ownerInfo = '';
-            try {
-              const owner = await getContractOwner(contract, network || 'sepolia');
-              ownerInfo = `\n合约所有者地址: ${owner}\n当前账户地址: ${account}`;
-            } catch (e) {
-              console.warn('无法获取合约所有者:', e);
-            }
-            setError(`⚠️ 您不是合约所有者，无法更新链上状态。${ownerInfo}\n\n请确保：\n1. 使用部署合约时的账户连接钱包\n2. 或者联系合约所有者进行状态更新\n\n状态将仅保存到数据库。`);
-          } else if (errorMessage.includes('user rejected') || errorMessage.includes('User denied')) {
+          if (errorMessage.includes('user rejected') || errorMessage.includes('User denied')) {
             setError('您已取消交易，状态将仅保存到数据库。');
           } else {
             setError(`链上状态更新失败: ${errorMessage}。状态将仅保存到数据库。`);
@@ -186,9 +174,7 @@ const AdminProposals = () => {
             const receipt = await updateProposalStatusOnChain(
               contract,
               proposal.chainProposalId,
-              chainStatus,
-              account,
-              network || 'sepolia'
+              chainStatus
             );
             
             chainTransactionHash = receipt.hash;
@@ -218,17 +204,7 @@ const AdminProposals = () => {
         } catch (chainError) {
           console.error('链上状态更新失败:', chainError);
           const errorMessage = chainError.message || chainError.toString();
-          if (errorMessage.includes('Only owner') || errorMessage.includes('only owner') || errorMessage.includes('Contract owner')) {
-            // 尝试获取合约所有者地址以便显示
-            let ownerInfo = '';
-            try {
-              const owner = await getContractOwner(contract, network || 'sepolia');
-              ownerInfo = `\n合约所有者地址: ${owner}\n当前账户地址: ${account}`;
-            } catch (e) {
-              console.warn('无法获取合约所有者:', e);
-            }
-            setError(`⚠️ 您不是合约所有者，无法更新链上状态。${ownerInfo}\n\n请确保：\n1. 使用部署合约时的账户连接钱包\n2. 或者联系合约所有者进行状态更新\n\n状态将仅保存到数据库。`);
-          } else if (errorMessage.includes('user rejected') || errorMessage.includes('User denied')) {
+          if (errorMessage.includes('user rejected') || errorMessage.includes('User denied')) {
             setError('您已取消交易，状态将仅保存到数据库。');
           } else if (errorMessage.includes('Failed to fetch')) {
             setError('无法连接到区块链网络。请确保 Hardhat 节点正在运行。状态将仅保存到数据库。');

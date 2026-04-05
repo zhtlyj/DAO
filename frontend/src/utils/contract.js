@@ -439,38 +439,18 @@ export async function getContractOwner(contract, network = 'sepolia') {
 }
 
 /**
- * 更新提案状态（调用合约）
+ * 更新提案状态（调用合约；链上不限 owner，权限由后端/管理员路由保证）
  * @param {ethers.Contract} contract - DAO 合约实例
  * @param {number} proposalId - 提案 ID
  * @param {number} status - 提案状态（ProposalStatus 枚举值）
- * @param {string} currentAccount - 当前账户地址（可选，用于权限检查）
- * @param {string} network - 用于只读查询 owner，默认 sepolia
  * @returns {Promise<ethers.ContractTransactionReceipt>}
  */
-export async function updateProposalStatusOnChain(
-  contract,
-  proposalId,
-  status,
-  currentAccount = null,
-  network = 'sepolia'
-) {
+export async function updateProposalStatusOnChain(contract, proposalId, status) {
   if (!contract) {
     throw new Error('Contract instance is required');
   }
 
   try {
-    // 如果提供了当前账户，先检查是否是合约所有者
-    if (currentAccount) {
-      const owner = await getContractOwner(contract, network);
-      const ownerAddress = owner.toLowerCase();
-      const accountAddress = currentAccount.toLowerCase();
-      
-      if (ownerAddress !== accountAddress) {
-        throw new Error(`Only owner can call this function. Contract owner: ${owner}, Your address: ${currentAccount}`);
-      }
-    }
-    
-    // 调用合约更新状态
     const tx = await contract.updateProposalStatus(proposalId, status);
     const receipt = await tx.wait();
     return receipt;
